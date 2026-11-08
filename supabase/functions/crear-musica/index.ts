@@ -27,6 +27,10 @@ const LAYERS = {
 };
 // Who may call this function (the published page and local testing).
 const ORIGINS = ["https://cvergaraqec-blip.github.io", "http://localhost:8099", "http://127.0.0.1:8099"];
+// Preview copies of the page opened inside claude.ai (Artifacts).
+const PREVIEW = /^https:\/\/([a-z0-9-]+\.)*(claudeusercontent\.com|claude\.ai|claude\.site)$/;
+// Artifact previews may run in a sandboxed frame whose origin is "null".
+const allowed = (o: string | null) => !!o && (ORIGINS.includes(o) || PREVIEW.test(o) || o === "null");
 const MODELS = ["claude-opus-5-5", "claude-haiku-5-5"];
 const MAX_PER_HOUR = 30; // per visitor IP, best effort (per instance)
 const seen = new Map<string, number[]>();
@@ -64,7 +68,7 @@ ${Object.entries(LAYERS).map(([id, d]) => `- ${id}: ${d}`).join("\n")}
 Elige el BPM típico del estilo (o el que pida el oyente). Responde solo con el JSON pedido.`;
 
 function cors(origin: string | null) {
-  const ok = origin && ORIGINS.includes(origin) ? origin : ORIGINS[0];
+  const ok = allowed(origin) ? origin! : ORIGINS[0];
   return {
     "Access-Control-Allow-Origin": ok,
     "Access-Control-Allow-Methods": "POST, OPTIONS",
@@ -91,7 +95,7 @@ Deno.serve(async (req) => {
   const headers = cors(origin);
   if (req.method === "OPTIONS") return new Response("ok", { headers });
   if (req.method !== "POST") return json({ error: "Usa POST" }, 405, headers);
-  if (!origin || !ORIGINS.includes(origin)) return json({ error: "Origen no permitido" }, 403, headers);
+  if (!allowed(origin)) return json({ error: "Origen no permitido" }, 403, headers);
 
   const ip = (req.headers.get("x-forwarded-for") || "").split(",")[0].trim() || "?";
   const now = Date.now();
