@@ -111,6 +111,19 @@ textarea { min-height: 110px; font-size: 12px; resize: vertical; }
 details summary { cursor: pointer; font-weight: 600; }
 ul.how { margin: 0; padding-left: 18px; display: grid; gap: 6px; color: var(--muted); }
 ul.how b { color: var(--ink); font-weight: 600; }
+.ai { display: grid; gap: 8px; margin-top: 12px; padding: 14px; border: 1px solid #556640; border-radius: 12px; background: #1b2414; max-width: 820px; }
+.ai label { font-size: 13px; color: var(--ink); }
+.ai .row { flex-wrap: nowrap; }
+@media (max-width: 560px) { .ai .row { flex-wrap: wrap; } .ai .row button { width: 100%; } }
+.ai input[type=text] {
+  font: 500 15px var(--font-body); color: var(--ink); background: #141a0f; border: 1px solid #4b573c;
+  border-radius: 9px; padding: 8px 12px; min-height: 44px; width: 100%; box-sizing: border-box; flex: 1 1 auto; min-width: 0;
+}
+.ai input[type=text]::placeholder { color: #8a9180; }
+.ai .examples { display: flex; flex-wrap: wrap; gap: 6px; }
+.ai .examples button { min-height: 30px; padding: 0 10px; font-weight: 500; font-size: 12px; color: var(--muted); background: transparent; border-radius: 99px; }
+.ai .result { margin: 0; font-size: 13px; color: var(--muted); }
+.ai .result b { color: var(--lime); font-weight: 600; }
 @media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
 </style>
 </head>
@@ -120,6 +133,20 @@ ul.how b { color: var(--ink); font-weight: 600; }
     <span class="eyebrow">RadioRun · Adaptive music</span>
     <h1>Mezclador <span>RadioRun</span></h1>
     <p class="sub">Cada fila es un instrumento de la música adaptativa. La parte verde es el rango de BPM en el que suena: arrastra sus bordes para que entre antes o después, o para que dure más o menos. Pulsa Play para oírlo con el mismo motor que la app, y <b>Guardar</b> para conservar la mezcla en este navegador y descargarla como <code>mix.json</code>.</p>
+    <form id="ai" class="ai" autocomplete="off">
+      <label for="aiText">¿Qué quiere escuchar el oyente?</label>
+      <div class="row">
+        <input id="aiText" type="text" maxlength="300" placeholder="Una canción, un artista, un género o un link de YouTube">
+        <button id="aiGo" class="primary" type="submit" disabled>Crear música</button>
+      </div>
+      <div class="examples" aria-label="Ejemplos">
+        <button type="button">Me gusta Bad Bunny</button>
+        <button type="button">Techno oscuro y rápido</button>
+        <button type="button">Algo tranquilo para relajarme</button>
+        <button type="button">Rock para correr</button>
+      </div>
+      <p id="aiResult" class="result" role="status">Crea una mezcla original con los sonidos del kit, inspirada en lo que le gusta. No copia ni descarga la canción: de un link de YouTube solo lee el título.</p>
+    </form>
   </header>
 
   <section class="transport" aria-label="Reproducción">
@@ -207,6 +234,7 @@ ul.how b { color: var(--ink); font-weight: 600; }
   </section>
 </div>
 
+<script src="generador.js"></script>
 <script>
 'use strict';
 // ---- The song: song.json, plus the saved mix (this browser, or mix.json) ----
@@ -734,6 +762,42 @@ $('copy').addEventListener('click', async () => {
   catch { const t = $('export'); t.closest('details').open = true; t.select(); $('copyNote').textContent = 'Selecciona el texto y cópialo.'; }
 });
 
+// ---- Crear música: what the listener likes → a mix (generador.js) ----
+const esc = (t) => String(t).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+async function youtubeTitle(id) {
+  const url = encodeURIComponent('https://www.youtube.com/watch?v=' + id);
+  try {
+    const r = await fetch('https://noembed.com/embed?url=' + url);
+    const d = await r.json();
+    if (d && d.title) return { title: d.title, author: d.author_name || '' };
+  } catch {}
+  return null;
+}
+async function createMusic(text) {
+  text = text.trim();
+  if (!text || !SONG.layers.length) return;
+  $('aiGo').disabled = true;
+  let extra = '', source = '';
+  const yt = Generador.youtubeId(text);
+  if (yt) {
+    $('aiResult').textContent = 'Leyendo el título del video…';
+    const info = await youtubeTitle(yt);
+    if (info) { extra = info.title + ' ' + info.author; source = 'Inspirada en «' + info.title + '»' + (info.author ? ' de ' + info.author : '') + '. '; }
+    else source = 'No pude leer el título del video; escribe también el nombre de la canción o el género. ';
+  }
+  const r = Generador.create(text.replace(/https?:\/\/\S+/g, ' '), SONG.layers, extra);
+  applyMix(cleanMix(r.mix));
+  fixedBpm = r.bpm; $('bpm').value = r.bpm;
+  if (mode !== 'fixed') setMode('fixed');
+  live(); fill(); draw(); frame(); changed();
+  $('aiResult').innerHTML = esc(source) + '<b>' + esc(r.label) + ' · ' + r.bpm + ' BPM</b> con ' + esc(r.instruments.map(nameOf).join(', ')) +
+    '. Suena con Play; en Recorrido se oye cómo crece. Pulsa <b>Guardar</b> para conservarla.';
+  $('aiGo').disabled = false;
+  if (!playing && engine) await start();
+}
+$('ai').addEventListener('submit', (e) => { e.preventDefault(); createMusic($('aiText').value); });
+for (const b of document.querySelectorAll('#ai .examples button')) b.addEventListener('click', () => { $('aiText').value = b.textContent; createMusic(b.textContent); });
+
 // ---- Start-up ----
 window.addEventListener('resize', () => { layout(); draw(); });
 // song.json and mix.json are plain files next to this page, so it works on any
@@ -749,7 +813,7 @@ window.addEventListener('resize', () => { layout(); draw(); });
   useSong({ layers, mix: cleanMix(mix) });
   layout(); fill(); draw(); changed();
   await loadKit();
-  $('play').disabled = false; $('play').textContent = 'Play';
+  $('play').disabled = false; $('play').textContent = 'Play'; $('aiGo').disabled = false;
 })().catch(() => {
   $('play').textContent = 'Sin sonido';
   setStatus(location.protocol === 'file:' ? 'Abre el Mezclador desde su página web o con: node server.cjs' : 'No se pudo cargar la canción. Recarga la página.', true);

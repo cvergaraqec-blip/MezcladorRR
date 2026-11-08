@@ -24,6 +24,7 @@ En el repositorio, ve a **Settings → Pages**, en *Build and deployment* elige 
 
 ## Usarlo
 
+- **Crear música:** escribe lo que le gusta al oyente (una canción, un artista, un género, un ánimo como «tranquilo» o «rápido», o un link de YouTube) y pulsa **Crear música**. La página arma una mezcla original con los sonidos del kit: elige los instrumentos, el BPM y el orden en que entran, y la pone a sonar. Luego puedes ajustarla a mano y **Guardar**. No copia ni descarga la canción: de un link de YouTube solo lee el título (con noembed.com). Las reglas están en `generador.js`.
 - **Mapa:** cada fila es un instrumento. La parte verde es el rango de BPM en que suena; el degradado es donde entra o sale poco a poco. Arrastra las **barras blancas** para que entre antes o después, o para que dure más o menos.
 - **Instrumento:** abajo puedes escribir los BPM exactos, hacer que siga sonando hasta 220 y cambiar su volumen.
 - **Play:** con **BPM fijo** (el deslizador) o en un **Recorrido** de 45 a 215 BPM en 2 min 30 s. Los cambios se oyen al momento.
@@ -37,6 +38,7 @@ En el repositorio, ve a **Settings → Pages**, en *Build and deployment* elige 
 | Archivo | Qué es |
 |---|---|
 | `index.html` | La página del Mezclador |
+| `generador.js` | Crear música: convierte lo que le gusta al oyente en una mezcla |
 | `server.cjs` | Servidor local opcional: sirve la página y los sonidos, y guarda `mix.json` |
 | `song.json` | La canción: las 18 capas, sus patrones y sus rangos de BPM originales |
 | `kit/` | Los 47 sonidos de la canción (WAV) |
