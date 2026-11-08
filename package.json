@@ -1,0 +1,12 @@
+{
+  "name": "mezclador",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Mezclador de la música adaptativa de RadioRun: rangos de BPM y volumen de cada instrumento, con escucha en vivo.",
+  "scripts": {
+    "start": "node server.cjs"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}

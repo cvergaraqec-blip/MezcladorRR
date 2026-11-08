@@ -1,0 +1,691 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Mezclador RadioRun</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@500;700&display=swap">
+<style>
+/* Layout: one working surface. Transport on top, the BPM map of every
+   instrument as the main canvas (like the RadioRun video), the selected
+   instrument's exact numbers below it. Single dark look: RadioRun's own. */
+:root {
+  color-scheme: dark;
+  --bg: #121511;
+  --panel: #1a2115;
+  --cell: #1a2115;
+  --line: #30352c;
+  --border: #3c4434;
+  --ink: #f3f4ed;
+  --muted: #a3aa9a;
+  --lime: #d0ef89;
+  --on-lime: #202a12;
+  --warn: #f2c46d;
+  --font-body: "Inter", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-num: "JetBrains Mono", ui-monospace, "SFMono-Regular", Menlo, monospace;
+}
+html, body { margin: 0; }
+body {
+  background: var(--bg);
+  color: var(--ink);
+  font-family: var(--font-body);
+  font-size: 14px;
+  line-height: 1.45;
+}
+.wrap {
+  max-width: 1180px;
+  margin: 0 auto;
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+  padding-block: 20px 40px;
+  display: grid;
+  gap: 18px;
+}
+header { display: grid; gap: 4px; }
+h1 { margin: 0; font-size: 24px; font-weight: 700; letter-spacing: -0.4px; text-wrap: balance; }
+h1 span { color: var(--lime); }
+h2 { margin: 0; font-size: 15px; font-weight: 600; }
+.sub { margin: 0; color: var(--muted); max-width: 70ch; }
+.eyebrow { font-size: 11px; font-weight: 700; letter-spacing: 1.6px; color: var(--muted); text-transform: uppercase; }
+
+.transport {
+  display: flex; flex-wrap: wrap; align-items: center; gap: 12px 18px;
+  padding: 12px 14px; border: 1px solid var(--border); border-radius: 12px; background: var(--panel);
+}
+button, .btn {
+  font: 600 13px var(--font-body); color: var(--ink); background: #22281d;
+  border: 1px solid var(--border); border-radius: 9px; padding: 0 14px; min-height: 40px; cursor: pointer;
+}
+button:hover { border-color: #62714f; }
+button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-visible, canvas:focus-visible {
+  outline: 2px solid var(--lime); outline-offset: 2px;
+}
+button.primary { background: var(--lime); color: var(--on-lime); border-color: var(--lime); min-width: 120px; }
+button.primary[aria-pressed="true"] { background: #27331b; color: var(--lime); border-color: #768d52; }
+button:disabled { opacity: 0.5; cursor: default; }
+.seg { display: inline-flex; border: 1px solid var(--border); border-radius: 9px; overflow: hidden; }
+.seg button { border: 0; border-radius: 0; background: transparent; color: var(--muted); }
+.seg button[aria-pressed="true"] { background: #2c3523; color: var(--lime); }
+.bpm { display: flex; align-items: center; gap: 10px; flex: 1 1 260px; min-width: 0; }
+.bpm input[type=range] { flex: 1; min-width: 0; accent-color: var(--lime); }
+.bpm output { font: 700 22px var(--font-num); min-width: 3.2ch; text-align: right; font-variant-numeric: tabular-nums; }
+.bpm small { color: var(--muted); }
+.phase { font-weight: 600; color: var(--lime); min-width: 6ch; }
+.status { font-size: 12px; color: var(--muted); margin-left: auto; }
+.status.warn { color: var(--warn); }
+
+.map { border: 1px solid var(--border); border-radius: 12px; background: var(--bg); overflow-x: auto; }
+.map canvas { display: block; touch-action: none; cursor: default; }
+.legend { display: flex; flex-wrap: wrap; gap: 6px 18px; color: var(--muted); font-size: 12px; padding: 0 4px; }
+.legend b { color: var(--ink); font-weight: 600; }
+
+.panels { display: grid; grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr); gap: 18px; }
+@media (max-width: 820px) { .panels { grid-template-columns: minmax(0, 1fr); } }
+.panel { border: 1px solid var(--border); border-radius: 12px; background: var(--panel); padding: 16px; display: grid; gap: 12px; align-content: start; min-width: 0; }
+.fields { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; }
+@media (max-width: 520px) { .fields { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+label { display: grid; gap: 5px; font-size: 12px; font-weight: 600; color: var(--muted); }
+input[type=number], select, textarea {
+  font: 500 15px var(--font-num); color: var(--ink); background: #181d13; border: 1px solid #414b35;
+  border-radius: 8px; padding: 8px 10px; min-height: 40px; width: 100%; box-sizing: border-box;
+}
+select { font-family: var(--font-body); font-weight: 600; }
+.row { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 16px; }
+.check { display: flex; align-items: center; gap: 8px; font-size: 13px; color: var(--ink); font-weight: 500; }
+.check input { width: 18px; height: 18px; accent-color: var(--lime); }
+.vol { display: flex; align-items: center; gap: 10px; flex: 1 1 220px; }
+.vol input { flex: 1; accent-color: var(--lime); }
+.vol output { font: 600 13px var(--font-num); min-width: 4.5ch; text-align: right; }
+.note { margin: 0; color: var(--muted); font-size: 12.5px; }
+.note b { color: var(--ink); font-weight: 600; }
+.drop { border: 1px dashed #62714f; border-radius: 10px; padding: 14px; display: grid; gap: 8px; color: var(--muted); }
+.drop.over { background: #1c2714; border-color: var(--lime); }
+.loops { display: grid; gap: 8px; }
+.loopitem { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; padding: 10px; border: 1px solid var(--line); border-radius: 9px; }
+.loopitem strong { flex: 1 1 160px; min-width: 0; overflow-wrap: anywhere; font-weight: 600; }
+.loopitem label { grid-auto-flow: column; align-items: center; }
+.loopitem input[type=number] { width: 5.5em; min-height: 34px; padding: 4px 8px; }
+textarea { min-height: 110px; font-size: 12px; resize: vertical; }
+details summary { cursor: pointer; font-weight: 600; }
+ul.how { margin: 0; padding-left: 18px; display: grid; gap: 6px; color: var(--muted); }
+ul.how b { color: var(--ink); font-weight: 600; }
+@media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <span class="eyebrow">RadioRun · Adaptive music</span>
+    <h1>Mezclador <span>RadioRun</span></h1>
+    <p class="sub">Cada fila es un instrumento de la música adaptativa. La parte verde es el rango de BPM en el que suena: arrastra sus bordes para que entre antes o después, o para que dure más o menos. Pulsa Play para oírlo con el mismo motor que la app, y <b>Guardar</b> para conservar la mezcla en <code>mix.json</code>.</p>
+  </header>
+
+  <section class="transport" aria-label="Reproducción">
+    <button id="play" class="primary" aria-pressed="false" disabled>Cargando…</button>
+    <div class="seg" role="group" aria-label="Modo">
+      <button id="modeFixed" aria-pressed="true">BPM fijo</button>
+      <button id="modeJourney" aria-pressed="false">Recorrido 45 → 215</button>
+    </div>
+    <div class="bpm">
+      <input id="bpm" type="range" min="40" max="220" step="1" value="90" aria-label="BPM">
+      <output id="bpmOut" for="bpm">90</output><small>BPM</small>
+      <span id="phase" class="phase">Spa</span>
+    </div>
+    <span id="status" class="status" role="status">Conectando…</span>
+  </section>
+
+  <div class="map">
+    <canvas id="grid" tabindex="0" aria-label="Mapa de instrumentos por BPM. Usa los campos de abajo para cambiar los valores con el teclado."></canvas>
+  </div>
+  <div class="legend">
+    <span><b>Verde brillante</b> = suena a todo volumen</span>
+    <span><b>Degradado</b> = entra o sale poco a poco</span>
+    <span><b>Barras blancas</b> = bordes que se arrastran</span>
+    <span><b>M</b> = silenciar solo para escuchar (no se guarda)</span>
+  </div>
+
+  <div class="panels">
+    <section class="panel" aria-labelledby="selTitle">
+      <div class="row" style="justify-content: space-between">
+        <h2 id="selTitle">Instrumento</h2>
+        <button id="resetOne">Restablecer este</button>
+      </div>
+      <label>Elige un instrumento
+        <select id="layerSel"></select>
+      </label>
+      <div class="fields">
+        <label>Empieza a entrar<input id="in0" type="number" min="40" max="220" step="1"></label>
+        <label>Suena completo desde<input id="in1" type="number" min="40" max="220" step="1"></label>
+        <label>Empieza a salir<input id="out0" type="number" min="40" max="220" step="1"></label>
+        <label>Ya no suena en<input id="out1" type="number" min="40" max="220" step="1"></label>
+      </div>
+      <div class="row">
+        <label class="check"><input id="never" type="checkbox"> Sigue sonando hasta 220 BPM</label>
+        <div class="vol">
+          <label for="gain" style="display:block">Volumen</label>
+          <input id="gain" type="range" min="0" max="200" step="5" value="100">
+          <output id="gainOut" for="gain">100 %</output>
+        </div>
+      </div>
+      <p id="selNote" class="note"></p>
+    </section>
+
+    <section class="panel" aria-labelledby="loopTitle">
+      <h2 id="loopTitle">Tus loops</h2>
+      <div id="drop" class="drop">
+        <span>Arrastra aquí un archivo de audio (WAV o MP3) o elígelo:</span>
+        <input id="loopFile" type="file" accept="audio/*">
+        <span class="note">Indica cuántos <b>beats</b> dura el loop: así se adapta al BPM sin cambiar de tono, como la música de Training. Aparece como una fila nueva en el mapa.</span>
+      </div>
+      <div id="loopList" class="loops"></div>
+      <p class="note">Los loops se escuchan aquí mientras la página está abierta, pero <b>no se guardan</b> y todavía no pasan a la app: para eso hay que preparar el motor de RadioRun.</p>
+    </section>
+  </div>
+
+  <section class="panel" aria-labelledby="saveTitle">
+    <h2 id="saveTitle">Guardar</h2>
+    <ul class="how">
+      <li><b>Guardar</b> escribe tus rangos y volúmenes en <code>mix.json</code>, en la carpeta del Mezclador. Súbelo a GitHub para compartir la mezcla.</li>
+      <li>Para llevar la mezcla a RadioRun, pasa ese <code>mix.json</code> al proyecto de la app (o a Claude, que lo aplica).</li>
+      <li><b>Restablecer todo</b> vuelve a los valores de <code>song.json</code>. Se aplica al guardar.</li>
+    </ul>
+    <div class="row">
+      <button id="save" class="primary" disabled>Guardar</button>
+      <button id="resetAll">Restablecer todo</button>
+      <button id="copy">Copiar cambios</button>
+      <span id="copyNote" class="note"></span>
+    </div>
+    <details>
+      <summary>Ver los cambios como texto</summary>
+      <textarea id="export" readonly aria-label="Cambios en formato JSON"></textarea>
+    </details>
+  </section>
+</div>
+
+<script>
+'use strict';
+// ---- The song, served by server.cjs from song.json (and mix.json) ----
+let SONG = { layers: [] };
+const NAMES = {
+  pad: 'Pad de fondo', air: 'Aire (olas)', flute: 'Flauta de pan', bells: 'Campanas', heartbeat: 'Latido', shaker: 'Shaker', sub: 'Bajo sub',
+  kick: 'Bombo', hat: 'Charles', clap: 'Palmas', roll: 'Bajo rodante', hats16: 'Charles en 16', openhat: 'Charles abierto',
+  perc: 'Percusión', ride: 'Ride', acid: 'Acid', stab: 'Acordes stab', fill: 'Redobles', drive: 'Bombo extra',
+};
+const GROUPS = [
+  ['SPA', ['pad', 'air', 'bells', 'flute', 'heartbeat', 'shaker', 'sub']],
+  ['RITMO', ['kick', 'hat', 'clap', 'roll', 'hats16']],
+  ['TECHNO', ['openhat', 'perc', 'ride', 'acid', 'stab', 'fill', 'drive']],
+  ['TUS LOOPS', []],
+];
+const MIN = 40, MAX = 220, JOURNEY = { from: 45, to: 215, seconds: 150 };
+const DEFAULTS = {};
+// Editable settings per layer (song layers and the user's loops).
+const settings = {};
+const muted = new Set();
+const loops = []; // {id, name, data, beats, ...}
+let selected = null;
+let saved = '{}';
+
+function useSong(data) {
+  SONG = { layers: data.layers };
+  for (const l of SONG.layers) {
+    DEFAULTS[l.id] = { in: [...l.in], out: l.out ? [...l.out] : null, floor: l.floor, gain: l.gain };
+    const m = (data.mix && data.mix[l.id]) || {};
+    settings[l.id] = { in: [...(m.in || l.in)], out: 'out' in m ? (m.out ? [...m.out] : null) : l.out ? [...l.out] : null, floor: l.floor, gain: m.gain ?? l.gain };
+  }
+  // Layers without a place in GROUPS (new ones) get a group of their own.
+  const known = new Set(GROUPS.flatMap(([, ids]) => ids));
+  const extra = SONG.layers.map((l) => l.id).filter((id) => !known.has(id));
+  if (extra.length) GROUPS.splice(GROUPS.length - 1, 0, ['OTRAS', extra]);
+  selected = SONG.layers.some((l) => l.id === 'flute') ? 'flute' : SONG.layers.some((l) => l.id === 'bells') ? 'bells' : SONG.layers[0].id;
+  saved = JSON.stringify(changes());
+}
+
+// ---- Sequencer: a line-for-line port of RadioRun's scripts/adaptive/sequencer.cjs ----
+const GLIDE = 1.2;
+const smoothstep = (a, b, x) => { if (b <= a) return x >= a ? 1 : 0; const t = Math.min(1, Math.max(0, (x - a) / (b - a))); return t * t * (3 - 2 * t); };
+const softClip = (x) => { const a = Math.abs(x); return a <= 0.7 ? x : Math.sign(x) * (0.7 + 0.3 * Math.tanh((a - 0.7) / 0.3)); };
+const level = (s, bpm) => smoothstep(s.in[0], s.in[1], bpm) * (s.floor + (1 - s.floor) * (1 - (s.out ? smoothstep(s.out[0], s.out[1], bpm) : 0)));
+class Voice {
+  constructor() { this.data = null; this.pos = 0; this.gain = 1; this.step = 0; this.vel = 1; this.age = 0; }
+  get active() { return this.data !== null; }
+  start(data, vel, age, from = 0, fadeIn = 0) { this.data = data; this.pos = from; this.gain = fadeIn ? 0 : 1; this.step = fadeIn ? 1 / fadeIn : 0; this.vel = vel; this.age = age; this.loop = false; }
+  fadeOut(n) { if (!this.data) return; this.step = -this.gain / Math.max(1, n); if (this.step === 0) this.data = null; }
+  next() {
+    const d = this.data; if (!d) return 0;
+    const v = d[this.pos] * this.gain * this.vel;
+    this.pos++;
+    if (this.pos >= d.length) { if (this.loop) this.pos = 0; else this.data = null; }
+    if (this.step !== 0) {
+      this.gain += this.step;
+      if (this.gain >= 1 && this.step > 0) { this.gain = 1; this.step = 0; }
+      else if (this.gain <= 0) { this.gain = 0; this.data = null; }
+    }
+    return v;
+  }
+}
+class Engine {
+  constructor(rate, samples) {
+    this.rate = rate;
+    this.smooth = 1 - Math.exp(-1 / (GLIDE * rate));
+    this.layers = SONG.layers.map((l) => {
+      const steps = new Array(l.length).fill(null);
+      for (const [s, id, vel] of l.events) { const data = samples[id]; if (data) (steps[s] ??= []).push([data, vel]); }
+      return { id: l.id, poly: l.poly, length: l.length, steps, cutSamples: Math.max(1, Math.round(l.cut * rate)), voices: Array.from({ length: l.poly + 1 }, () => new Voice()), g: 0, target: 0 };
+    });
+    this.loopLayers = [];
+    this.age = 0; this.step = 0; this.toNext = 0; this.bpm = 90; this.tickLen = (rate * 60) / 90 / 4;
+  }
+  targetOf(id, bpm) { const s = settings[id]; return !s || muted.has(id) ? 0 : s.gain * level(s, bpm); }
+  setBpm(bpm, instant = false) {
+    for (const l of [...this.layers, ...this.loopLayers]) { l.target = this.targetOf(l.id, bpm); if (instant) l.g = l.target; }
+  }
+  addLoop(loop) {
+    this.loopLayers.push({ id: loop.id, loop, voices: [new Voice(), new Voice()], cur: 0, tick: 0, g: 0, target: 0 });
+  }
+  removeLoop(id) { this.loopLayers = this.loopLayers.filter((l) => l.id !== id); }
+  tick() {
+    for (const l of this.layers) {
+      if (l.target <= 0.001 && l.g <= 0.001) continue;
+      const events = l.steps[this.step % l.length]; if (!events) continue;
+      for (const [data, vel] of events) this.trigger(l, data, vel);
+    }
+    // Your loops: re-cut on every 16th, so they follow the BPM without changing pitch (like Training's music).
+    for (const l of this.loopLayers) {
+      const slices = Math.max(1, l.loop.beats * 4);
+      const idx = l.tick % slices;
+      const start = Math.round((idx * l.loop.data.length) / slices);
+      const now = l.voices[l.cur];
+      l.tick++;
+      if (now.active && Math.abs(now.pos - start) <= 2) continue;
+      now.fadeOut(256);
+      l.cur = 1 - l.cur;
+      l.voices[l.cur].start(l.loop.data, 1, 0, start, 32);
+      l.voices[l.cur].loop = true;
+    }
+  }
+  trigger(l, data, vel) {
+    let active = 0, oldest = null;
+    for (const v of l.voices) if (v.active && v.step >= 0) { active++; if (!oldest || v.age < oldest.age) oldest = v; }
+    if (active >= l.poly && oldest) oldest.fadeOut(l.cutSamples);
+    let free = null;
+    for (const v of l.voices) if (!v.active) free = free ?? v;
+    if (!free) for (const v of l.voices) if (!free || v.gain < free.gain) free = v;
+    free.start(data, vel, ++this.age);
+  }
+  render(out, bpmNow) {
+    for (let i = 0; i < out.length; i++) {
+      if (this.toNext <= 0) {
+        if (this.step % 4 === 0) { this.bpm = bpmNow(); this.tickLen = (this.rate * 60) / this.bpm / 4; this.setBpm(this.bpm); }
+        this.tick(); this.step++; this.toNext += this.tickLen;
+      }
+      this.toNext -= 1;
+      let mix = 0;
+      for (const l of this.layers) { l.g += (l.target - l.g) * this.smooth; let s = 0; for (const v of l.voices) if (v.data) s += v.next(); mix += s * l.g; }
+      for (const l of this.loopLayers) { l.g += (l.target - l.g) * this.smooth; mix += (l.voices[0].next() + l.voices[1].next()) * l.g; }
+      out[i] = softClip(mix);
+    }
+  }
+}
+
+// ---- Audio: blocks rendered just ahead of the clock ----
+let ctx = null, engine = null, samples = null, master = null, timer = null, nextTime = 0, playing = false;
+let mode = 'fixed', journeyStart = 0, fixedBpm = 90;
+const BLOCK = 2048, AHEAD = 0.3;
+const $ = (id) => document.getElementById(id);
+
+async function loadKit() {
+  ctx = new (window.AudioContext || window.webkitAudioContext)({ sampleRate: 44100 });
+  const ids = [...new Set(SONG.layers.flatMap((l) => l.events.map((e) => e[1])))];
+  samples = {};
+  let done = 0;
+  await Promise.all(ids.map(async (id) => {
+    const res = await fetch('/kit/' + id + '.wav');
+    if (!res.ok) throw new Error(id);
+    const buf = await ctx.decodeAudioData(await res.arrayBuffer());
+    samples[id] = buf.getChannelData(0);
+    done++;
+    $('play').textContent = `Cargando ${Math.round((done / ids.length) * 100)} %`;
+  }));
+  engine = new Engine(ctx.sampleRate, samples);
+  for (const l of loops) engine.addLoop(l);
+}
+function currentBpm() {
+  if (mode === 'journey') {
+    const t = Math.max(0, ctx.currentTime - journeyStart);
+    if (t >= JOURNEY.seconds) { setTimeout(stop, 0); return JOURNEY.to; }
+    return Math.round(JOURNEY.from + ((JOURNEY.to - JOURNEY.from) * t) / JOURNEY.seconds);
+  }
+  return fixedBpm;
+}
+function pump() {
+  while (nextTime < ctx.currentTime + AHEAD) {
+    const out = new Float32Array(BLOCK);
+    engine.render(out, currentBpm);
+    const buf = ctx.createBuffer(1, BLOCK, ctx.sampleRate);
+    buf.copyToChannel(out, 0);
+    const src = ctx.createBufferSource();
+    src.buffer = buf; src.connect(master); src.start(nextTime);
+    nextTime += BLOCK / ctx.sampleRate;
+  }
+}
+async function start() {
+  if (!engine) return;
+  await ctx.resume();
+  master = ctx.createGain(); master.gain.value = 0.9; master.connect(ctx.destination);
+  engine.step = 0; engine.toNext = 0;
+  if (mode === 'journey') journeyStart = ctx.currentTime + 0.05;
+  engine.setBpm(currentBpm(), true);
+  nextTime = ctx.currentTime + 0.05;
+  playing = true; pump(); timer = setInterval(pump, 40);
+  $('play').textContent = 'Stop'; $('play').setAttribute('aria-pressed', 'true');
+  requestAnimationFrame(frame);
+}
+function stop() {
+  if (!playing) return;
+  playing = false; clearInterval(timer);
+  const m = master; m.gain.setTargetAtTime(0, ctx.currentTime, 0.05); setTimeout(() => m.disconnect(), 400);
+  for (const l of [...engine.layers, ...engine.loopLayers]) for (const v of l.voices) v.data = null;
+  $('play').textContent = 'Play'; $('play').setAttribute('aria-pressed', 'false');
+  draw();
+}
+function shownBpm() { return playing ? (mode === 'journey' ? currentBpm() : fixedBpm) : mode === 'journey' ? JOURNEY.from : fixedBpm; }
+function frame() {
+  const bpm = shownBpm();
+  $('bpmOut').textContent = bpm; if (mode === 'journey') $('bpm').value = bpm;
+  $('phase').textContent = bpm < 100 ? 'Spa' : bpm < 150 ? 'Ritmo' : 'Techno';
+  draw();
+  if (playing) requestAnimationFrame(frame);
+}
+
+// ---- The map ----
+const canvas = $('grid'), g2 = canvas.getContext('2d');
+const L = { label: 200, right: 18, top: 14, row: 28, gap: 12, axis: 34 };
+let rows = []; // {id, y, group}
+function layout() {
+  rows = []; let y = L.top;
+  for (const [name, ids] of GROUPS) {
+    const list = name === 'TUS LOOPS' ? loops.map((l) => l.id) : ids.filter((id) => settings[id]);
+    if (!list.length) continue;
+    list.forEach((id, i) => { rows.push({ id, y, group: i === 0 ? name : '' }); y += L.row; });
+    y += L.gap;
+  }
+  const w = Math.max(720, canvas.parentElement.clientWidth);
+  const h = y - L.gap + L.axis + 6;
+  const dpr = window.devicePixelRatio || 1;
+  canvas.width = w * dpr; canvas.height = h * dpr; canvas.style.width = w + 'px'; canvas.style.height = h + 'px';
+  g2.setTransform(dpr, 0, 0, dpr, 0, 0);
+  L.w = w; L.h = h; L.plotW = w - L.label - L.right; L.axisY = y - L.gap + 8;
+}
+const xOf = (bpm) => L.label + ((bpm - MIN) / (MAX - MIN)) * L.plotW;
+const bpmOf = (x) => Math.round(Math.min(MAX, Math.max(MIN, MIN + ((x - L.label) / L.plotW) * (MAX - MIN))));
+const lerp = (a, b, t) => Math.round(a + (b - a) * t);
+const CELL = [0x1a, 0x21, 0x15], LIME = [0xd0, 0xef, 0x89];
+function nameOf(id) { return NAMES[id] || loops.find((l) => l.id === id)?.name || id; }
+function handlesOf(s) { return [s.in[0], s.in[1], s.out ? s.out[0] : MAX, s.out ? s.out[1] : MAX]; }
+function draw() {
+  const css = getComputedStyle(document.documentElement);
+  const ink = css.getPropertyValue('--ink').trim(), muted2 = css.getPropertyValue('--muted').trim();
+  g2.fillStyle = css.getPropertyValue('--bg').trim(); g2.fillRect(0, 0, L.w, L.h);
+  const now = shownBpm();
+  for (const r of rows) {
+    const s = settings[r.id], h = L.row - 3, isSel = r.id === selected;
+    if (r.group) { g2.fillStyle = muted2; g2.font = '700 10px Inter, sans-serif'; g2.fillText(r.group, 10, r.y + 17); }
+    g2.fillStyle = isSel ? '#2c3523' : 'transparent';
+    if (isSel) g2.fillRect(64, r.y, L.label - 72, h);
+    g2.fillStyle = muted.has(r.id) ? muted2 : ink; g2.font = (isSel ? '600 ' : '400 ') + '13px Inter, sans-serif';
+    g2.fillText(nameOf(r.id), 72, r.y + 17, L.label - 110);
+    // Mute toggle
+    g2.strokeStyle = muted.has(r.id) ? '#f2c46d' : '#48513b'; g2.lineWidth = 1;
+    g2.strokeRect(L.label - 32.5, r.y + 3.5, 22, h - 7);
+    g2.fillStyle = muted.has(r.id) ? '#f2c46d' : muted2; g2.font = '700 11px Inter, sans-serif'; g2.fillText('M', L.label - 25, r.y + 17);
+    // Level across the BPM range
+    const step = 2;
+    for (let x = 0; x < L.plotW; x += step) {
+      const v = muted.has(r.id) ? 0 : level(s, MIN + (x / L.plotW) * (MAX - MIN));
+      const fade = 0.25 + 0.75 * (s.gain / (DEFAULTS[r.id]?.gain || s.gain || 1)) ** 0.5;
+      const t = Math.min(1, v * Math.min(1, fade));
+      g2.fillStyle = `rgb(${lerp(CELL[0], LIME[0], t)},${lerp(CELL[1], LIME[1], t)},${lerp(CELL[2], LIME[2], t)})`;
+      g2.fillRect(L.label + x, r.y, step, h);
+    }
+    // Handles
+    const hs = handlesOf(s);
+    hs.forEach((b, i) => {
+      if (!s.out && i >= 2) return;
+      const x = Math.round(xOf(b)) + 0.5;
+      g2.fillStyle = isSel ? ink : 'rgba(243,244,237,0.75)';
+      g2.fillRect(x - 1.5, r.y + 2, 3, h - 4);
+    });
+  }
+  // Axis
+  g2.fillStyle = muted2; g2.font = '500 11px "JetBrains Mono", monospace';
+  for (let b = 40; b <= 220; b += 20) {
+    const x = xOf(b);
+    g2.fillRect(Math.round(x), L.axisY - 6, 1, 6);
+    g2.fillText(String(b), x - (b >= 100 ? 10 : 7), L.axisY + 10);
+  }
+  g2.font = '700 11px Inter, sans-serif'; g2.fillText('BPM', 10, L.axisY + 10);
+  // Playhead
+  const px = Math.round(xOf(now)) + 0.5;
+  g2.strokeStyle = playing ? ink : 'rgba(243,244,237,0.4)'; g2.lineWidth = 2;
+  g2.beginPath(); g2.moveTo(px, L.top - 6); g2.lineTo(px, L.axisY - 8); g2.stroke();
+}
+
+// Dragging the edges of the green part.
+let drag = null;
+function hit(ev) {
+  const r = canvas.getBoundingClientRect();
+  const x = ev.clientX - r.left, y = ev.clientY - r.top;
+  const row = rows.find((w) => y >= w.y && y < w.y + L.row - 3);
+  return { x, y, row };
+}
+canvas.addEventListener('pointerdown', (ev) => {
+  const { x, row } = hit(ev);
+  if (!row) return;
+  if (x >= L.label - 34 && x <= L.label - 8) { toggleMute(row.id); return; }
+  select(row.id);
+  if (x < L.label) return;
+  const s = settings[row.id], hs = handlesOf(s);
+  let best = -1, dist = 14;
+  hs.forEach((b, i) => { if (!s.out && i >= 2 && b === MAX) { /* out handles parked at 220 */ } const d = Math.abs(xOf(b) - x); if (d < dist) { dist = d; best = i; } });
+  if (best < 0) {
+    // Click inside the row: move the nearest edge of the sound here.
+    const b = bpmOf(x);
+    best = Math.abs(b - hs[1]) <= Math.abs(b - hs[2]) ? (b < hs[1] ? 0 : 1) : (b > hs[2] ? 3 : 2);
+  }
+  if (!s.out && best >= 2) s.out = [MAX, MAX];
+  drag = { id: row.id, i: best };
+  canvas.setPointerCapture(ev.pointerId);
+  moveHandle(bpmOf(x));
+});
+canvas.addEventListener('pointermove', (ev) => {
+  const { x, row } = hit(ev);
+  if (drag) { moveHandle(bpmOf(x)); return; }
+  const near = row && x > L.label && handlesOf(settings[row.id]).some((b) => Math.abs(xOf(b) - x) < 14);
+  canvas.style.cursor = near ? 'ew-resize' : row && x >= L.label - 34 && x <= L.label - 8 ? 'pointer' : 'default';
+});
+const endDrag = () => { if (!drag) return; const s = settings[drag.id]; if (s.out && s.out[0] >= MAX) s.out = null; drag = null; changed(); };
+canvas.addEventListener('pointerup', endDrag);
+canvas.addEventListener('pointercancel', endDrag);
+function moveHandle(b) {
+  const s = settings[drag.id];
+  const v = [s.in[0], s.in[1], s.out ? s.out[0] : MAX, s.out ? s.out[1] : MAX];
+  v[drag.i] = b;
+  // Keep the edges in order: the one being dragged pushes the others.
+  for (let k = drag.i + 1; k < 4; k++) v[k] = Math.max(v[k], v[k - 1]);
+  for (let k = drag.i - 1; k >= 0; k--) v[k] = Math.min(v[k], v[k + 1]);
+  s.in = [v[0], v[1]]; s.out = [v[2], v[3]];
+  live(); fill(); draw();
+}
+function toggleMute(id) { muted.has(id) ? muted.delete(id) : muted.add(id); live(); draw(); }
+
+// ---- Selected instrument panel ----
+function select(id) { selected = id; fill(); draw(); }
+function fill() {
+  const s = settings[selected];
+  const sel = $('layerSel');
+  sel.innerHTML = '';
+  for (const r of rows) { const o = document.createElement('option'); o.value = r.id; o.textContent = nameOf(r.id); sel.appendChild(o); }
+  sel.value = selected;
+  $('in0').value = s.in[0]; $('in1').value = s.in[1];
+  $('never').checked = !s.out;
+  $('out0').value = s.out ? s.out[0] : ''; $('out1').value = s.out ? s.out[1] : '';
+  $('out0').disabled = $('out1').disabled = !s.out;
+  const base = DEFAULTS[selected]?.gain ?? 0.2;
+  const pct = Math.round((s.gain / base) * 100);
+  $('gain').value = pct; $('gainOut').textContent = pct + ' %';
+  const d = DEFAULTS[selected];
+  const same = d && JSON.stringify([d.in, d.out, d.gain]) === JSON.stringify([s.in, s.out, s.gain]);
+  $('selNote').textContent = d
+    ? same ? 'Con los valores de song.json.' : `Cambiado. En song.json: entra ${d.in[0]}–${d.in[1]}, ${d.out ? `sale ${d.out[0]}–${d.out[1]}` : 'no sale'}.`
+    : 'Tu loop: solo se escucha aquí, no se guarda.';
+  $('resetOne').disabled = !d;
+}
+function fromFields() {
+  const s = settings[selected];
+  const n = (id, fb) => { const v = Math.round(Number($(id).value)); return Number.isFinite(v) && $(id).value !== '' ? Math.min(MAX, Math.max(MIN, v)) : fb; };
+  const v = [n('in0', s.in[0]), n('in1', s.in[1])];
+  v[1] = Math.max(v[1], v[0]);
+  s.in = v;
+  if ($('never').checked) s.out = null;
+  else { const o0 = Math.max(n('out0', s.out ? s.out[0] : 200), v[1]); s.out = [o0, Math.max(n('out1', s.out ? s.out[1] : 220), o0)]; }
+  live(); fill(); draw(); changed();
+}
+['in0', 'in1', 'out0', 'out1'].forEach((id) => $(id).addEventListener('change', fromFields));
+$('never').addEventListener('change', fromFields);
+$('layerSel').addEventListener('change', (e) => select(e.target.value));
+$('gain').addEventListener('input', (e) => {
+  const base = DEFAULTS[selected]?.gain ?? 0.2;
+  settings[selected].gain = Math.round(base * Number(e.target.value)) / 100;
+  $('gainOut').textContent = e.target.value + ' %';
+  live(); draw();
+});
+$('gain').addEventListener('change', changed);
+$('resetOne').addEventListener('click', () => { settings[selected] = JSON.parse(JSON.stringify(DEFAULTS[selected])); live(); fill(); draw(); changed(); });
+$('resetAll').addEventListener('click', () => { for (const id in DEFAULTS) settings[id] = JSON.parse(JSON.stringify(DEFAULTS[id])); live(); fill(); draw(); changed(); });
+function live() { if (engine && playing) engine.setBpm(engine.bpm); }
+
+// ---- Transport ----
+$('play').addEventListener('click', async () => {
+  if (playing) { stop(); return; }
+  await start();
+});
+function setMode(m) {
+  if (playing) stop();
+  mode = m;
+  $('modeFixed').setAttribute('aria-pressed', String(m === 'fixed'));
+  $('modeJourney').setAttribute('aria-pressed', String(m === 'journey'));
+  $('bpm').disabled = m === 'journey';
+  frame();
+}
+$('modeFixed').addEventListener('click', () => setMode('fixed'));
+$('modeJourney').addEventListener('click', () => setMode('journey'));
+$('bpm').addEventListener('input', (e) => { fixedBpm = Number(e.target.value); frame(); });
+
+// ---- Your loops ----
+let loopCount = 0;
+async function addLoopFile(file) {
+  if (!file) return;
+  try {
+    if (!ctx) return;
+    const buf = await ctx.decodeAudioData(await file.arrayBuffer());
+    const ch = buf.getChannelData(0);
+    const data = new Float32Array(ch.length);
+    if (buf.numberOfChannels > 1) { const r = buf.getChannelData(1); for (let i = 0; i < ch.length; i++) data[i] = (ch[i] + r[i]) / 2; } else data.set(ch);
+    const seconds = data.length / ctx.sampleRate;
+    // A first guess at the length in beats: the power of two closest to 120 BPM.
+    const guess = Math.max(1, 2 ** Math.round(Math.log2((seconds * 120) / 60)));
+    const id = 'loop-' + ++loopCount;
+    const loop = { id, name: file.name.replace(/\.[^.]+$/, '').slice(0, 28) || 'Mi loop', data, beats: guess, seconds };
+    loops.push(loop);
+    settings[id] = { in: [MIN, MIN], out: null, floor: 0, gain: 0.3 };
+    DEFAULTS[id] = undefined;
+    if (engine) engine.addLoop(loop);
+    renderLoops(); layout(); select(id); live();
+  } catch {
+    $('loopList').insertAdjacentHTML('afterbegin', '<p class="note">No se pudo leer ese archivo. Prueba con un WAV o MP3.</p>');
+  }
+}
+function renderLoops() {
+  const list = $('loopList'); list.innerHTML = '';
+  for (const l of loops) {
+    const div = document.createElement('div'); div.className = 'loopitem';
+    const nat = Math.round((l.beats * 60) / l.seconds);
+    div.innerHTML = `<strong></strong><label>Beats <input type="number" min="1" max="128" step="1" id="beats-${l.id}"></label><span class="note">≈ ${nat} BPM original</span><button>Quitar</button>`;
+    div.querySelector('strong').textContent = l.name;
+    const inp = div.querySelector('input'); inp.value = l.beats;
+    inp.addEventListener('change', () => { l.beats = Math.min(128, Math.max(1, Math.round(Number(inp.value)) || l.beats)); renderLoops(); });
+    div.querySelector('button').addEventListener('click', () => {
+      loops.splice(loops.indexOf(l), 1); delete settings[l.id]; if (engine) engine.removeLoop(l.id);
+      if (selected === l.id) selected = SONG.layers[0].id; renderLoops(); layout(); fill(); draw();
+    });
+    list.appendChild(div);
+  }
+}
+$('loopFile').addEventListener('change', (e) => { addLoopFile(e.target.files[0]); e.target.value = ''; });
+const drop = $('drop');
+drop.addEventListener('dragover', (e) => { e.preventDefault(); drop.classList.add('over'); });
+drop.addEventListener('dragleave', () => drop.classList.remove('over'));
+drop.addEventListener('drop', (e) => { e.preventDefault(); drop.classList.remove('over'); addLoopFile(e.dataTransfer.files[0]); });
+
+// ---- Saving (server.cjs writes mix.json) ----
+function changes() {
+  const out = {};
+  for (const id in DEFAULTS) {
+    const d = DEFAULTS[id], s = settings[id];
+    if (!d || !s) continue;
+    const c = {};
+    if (JSON.stringify(d.in) !== JSON.stringify(s.in)) c.in = s.in;
+    if (JSON.stringify(d.out) !== JSON.stringify(s.out)) c.out = s.out;
+    if (d.gain !== s.gain) c.gain = s.gain;
+    if (Object.keys(c).length) out[id] = c;
+  }
+  return out;
+}
+function changed() {
+  const c = JSON.stringify(changes());
+  $('export').value = JSON.stringify(changes(), null, 2);
+  const dirty = c !== saved;
+  $('save').disabled = !dirty || !SONG.layers.length;
+  if (dirty) setStatus('Cambios sin guardar');
+  else setStatus(saved === '{}' ? 'Sin cambios por guardar' : 'Todo guardado');
+}
+function setStatus(t, warn = false) { const s = $('status'); s.textContent = t; s.classList.toggle('warn', warn); }
+$('save').addEventListener('click', async () => {
+  $('save').disabled = true;
+  setStatus('Guardando…');
+  try {
+    const res = await fetch('/api/mix', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(changes()) });
+    const data = await res.json();
+    if (!data.ok) throw new Error(data.error);
+    saved = JSON.stringify(changes());
+    setStatus('Guardado en mix.json.');
+  } catch (e) {
+    $('save').disabled = false;
+    setStatus('No se pudo guardar: ' + (e.message || e), true);
+  }
+});
+$('copy').addEventListener('click', async () => {
+  const text = JSON.stringify(changes(), null, 2);
+  try { await navigator.clipboard.writeText(text); $('copyNote').textContent = 'Copiado.'; }
+  catch { const t = $('export'); t.closest('details').open = true; t.select(); $('copyNote').textContent = 'Selecciona el texto y cópialo.'; }
+});
+
+// ---- Start-up ----
+window.addEventListener('resize', () => { layout(); draw(); });
+fetch('/api/song')
+  .then((r) => { if (!r.ok) throw new Error(); return r.json(); })
+  .then((data) => {
+    useSong(data);
+    layout(); fill(); draw(); changed();
+    return loadKit().then(() => { $('play').disabled = false; $('play').textContent = 'Play'; });
+  })
+  .catch(() => {
+    $('play').textContent = 'Sin sonido';
+    setStatus('Abre el Mezclador con: node server.cjs', true);
+  });
+</script>
+</body>
+</html>
