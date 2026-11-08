@@ -27,6 +27,7 @@ const LAYERS = {
 };
 // Who may call this function (the published page and local testing).
 const ORIGINS = ["https://cvergaraqec-blip.github.io", "http://localhost:8099", "http://127.0.0.1:8099"];
+const MODELS = ["claude-opus-5-5", "claude-haiku-5-5"];
 const MAX_PER_HOUR = 30; // per visitor IP, best effort (per instance)
 const seen = new Map<string, number[]>();
 
@@ -67,7 +68,7 @@ function cors(origin: string | null) {
   return {
     "Access-Control-Allow-Origin": ok,
     "Access-Control-Allow-Methods": "POST, OPTIONS",
-    "Access-Control-Allow-Headers": "content-type, authorization, apikey, x-client-info",
+    "Access-Control-Allow-Headers": "content-type, authorization, apikey, x-client-info, x-anthropic-key",
     "Vary": "Origin",
   };
 }
@@ -98,24 +99,30 @@ Deno.serve(async (req) => {
   if (hits.length >= MAX_PER_HOUR) return json({ error: "Demasiadas mezclas seguidas. Prueba en un rato." }, 429, headers);
   hits.push(now); seen.set(ip, hits);
 
-  let text = "", youtubeId = "";
+  let text = "", youtubeId = "", model = MODELS[0];
   try {
     const body = await req.json();
     text = String(body.text || "").slice(0, 300);
     youtubeId = /^[\w-]{11}$/.test(body.youtubeId || "") ? body.youtubeId : "";
+    if (MODELS.includes(body.model)) model = body.model;
   } catch {
     return json({ error: "Petición no válida" }, 400, headers);
   }
   if (!text.trim() && !youtubeId) return json({ error: "Falta el texto" }, 400, headers);
   const video = youtubeId ? await youtubeTitle(youtubeId) : "";
 
-  const client = new Anthropic(); // reads the ANTHROPIC_API_KEY secret
+  // The visitor's own key (from the page's "Ajustes de la IA") if given, else
+  // the ANTHROPIC_API_KEY secret. Never stored or logged.
+  const own = (req.headers.get("x-anthropic-key") || "").trim();
+  const apiKey = own || Deno.env.get("ANTHROPIC_API_KEY") || "";
+  if (!apiKey) return json({ error: "falta la clave de Anthropic" }, 503, headers);
+  const client = new Anthropic({ apiKey });
   try {
     const res = await client.beta.messages.create({
-      model: "claude-opus-5-5",
+      model,
       max_tokens: 4000,
-      betas: ["server-side-fallback-2026-07-01"],
-      fallbacks: "default",
+      // Server-side fallback exists for Opus, not for Haiku.
+      ...(model === "claude-opus-5-5" ? { betas: ["server-side-fallback-2026-07-01"], fallbacks: "default" } : {}),
       output_config: { effort: "low", format: { type: "json_schema", schema: SCHEMA } },
       system: SYSTEM,
       messages: [{
@@ -129,7 +136,11 @@ Deno.serve(async (req) => {
     const plan = JSON.parse(block?.text || "{}");
     return json({ plan, video }, 200, headers);
   } catch (e) {
-    console.error(e);
-    return json({ error: "La IA no respondió." }, 502, headers);
+    if (e instanceof Anthropic.AuthenticationError) return json({ error: "la clave de Anthropic no es válida" }, 401, headers);
+    if (e instanceof Anthropic.PermissionDeniedError) return json({ error: "la clave no tiene permiso o la cuenta no tiene saldo" }, 403, headers);
+    if (e instanceof Anthropic.RateLimitError) return json({ error: "Anthropic pidió esperar un momento" }, 429, headers);
+    if (e instanceof Anthropic.BadRequestError) { console.error(String((e as Error).message)); return json({ error: "la cuenta de Anthropic no tiene saldo o la petición no es válida" }, 400, headers); }
+    console.error(String((e as Error)?.message || e));
+    return json({ error: "la IA no respondió" }, 502, headers);
   }
 });
