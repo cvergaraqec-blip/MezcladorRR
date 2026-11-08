@@ -2,7 +2,9 @@
 // music plays, and how loud, with a live preview.
 // Run: node server.cjs   → open http://localhost:8099   (no install needed)
 //
-// "Guardar" writes the changes to mix.json in this folder. The server only
+// The page also works without this server, on any static host (GitHub Pages):
+// there "Guardar" keeps the mix in the browser and downloads mix.json.
+// With this server, "Guardar" writes the changes to mix.json in this folder. The server only
 // listens on this computer (127.0.0.1).
 const fs = require('fs');
 const http = require('http');
@@ -43,7 +45,8 @@ function cleanMix(input, layers) {
 }
 
 function send(res, status, type, body) {
-  res.writeHead(status, { 'Content-Type': type, 'Cache-Control': 'no-store' });
+  // X-Mezclador tells the page it can save mix.json through this server.
+  res.writeHead(status, { 'Content-Type': type, 'Cache-Control': 'no-store', 'X-Mezclador': 'server' });
   res.end(body);
 }
 
@@ -51,6 +54,13 @@ function handle(req, res) {
   const url = new URL(req.url, 'http://localhost');
   if (req.method === 'GET' && (url.pathname === '/' || url.pathname === '/index.html')) {
     return send(res, 200, 'text/html; charset=utf-8', fs.readFileSync(PAGE));
+  }
+  if (req.method === 'GET' && url.pathname === '/song.json') {
+    return send(res, 200, 'application/json', fs.readFileSync(SONG));
+  }
+  if (req.method === 'GET' && url.pathname === '/mix.json') {
+    if (!fs.existsSync(MIX)) return send(res, 404, 'text/plain', 'Not found');
+    return send(res, 200, 'application/json', fs.readFileSync(MIX));
   }
   if (req.method === 'GET' && url.pathname === '/api/song') {
     const { layers } = readJson(SONG, { layers: [] });
