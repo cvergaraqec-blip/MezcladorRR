@@ -145,7 +145,7 @@ ul.how b { color: var(--ink); font-weight: 600; }
         <button type="button">Algo tranquilo para relajarme</button>
         <button type="button">Rock para correr</button>
       </div>
-      <p id="aiResult" class="result" role="status">Crea una mezcla original con los sonidos del kit, inspirada en lo que le gusta. No copia ni descarga la canción: de un link de YouTube solo lee el título.</p>
+      <p id="aiResult" class="result" role="status">Una IA (Claude) crea una mezcla original con los sonidos del kit, inspirada en lo que le gusta. No copia ni descarga la canción: de un link de YouTube solo lee el título.</p>
     </form>
   </header>
 
@@ -764,35 +764,55 @@ $('copy').addEventListener('click', async () => {
 
 // ---- Crear música: what the listener likes → a mix (generador.js) ----
 const esc = (t) => String(t).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
-async function youtubeTitle(id) {
-  const url = encodeURIComponent('https://www.youtube.com/watch?v=' + id);
+// The AI lives in a small Supabase function (supabase/functions/crear-musica) that
+// keeps the Anthropic key off this page. If it can't answer, the rules in
+// generador.js make the mix right here.
+const AI_URL = 'https://kjakeluquwhmdvpesroj.supabase.co/functions/v1/crear-musica';
+async function askAi(text, youtubeId) {
+  const ctl = new AbortController(); const t = setTimeout(() => ctl.abort(), 45000);
   try {
-    const r = await fetch('https://noembed.com/embed?url=' + url);
+    const r = await fetch(AI_URL, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ text, youtubeId }), signal: ctl.signal });
     const d = await r.json();
-    if (d && d.title) return { title: d.title, author: d.author_name || '' };
+    if (!r.ok || !d.plan) throw new Error(d.error || 'sin respuesta');
+    return d;
+  } finally { clearTimeout(t); }
+}
+async function youtubeTitle(id) {
+  try {
+    const r = await fetch('https://noembed.com/embed?url=' + encodeURIComponent('https://www.youtube.com/watch?v=' + id));
+    const d = await r.json();
+    if (d && d.title) return d.title + (d.author_name ? ' de ' + d.author_name : '');
   } catch {}
-  return null;
+  return '';
 }
 async function createMusic(text) {
   text = text.trim();
   if (!text || !SONG.layers.length) return;
-  $('aiGo').disabled = true;
-  let extra = '', source = '';
-  const yt = Generador.youtubeId(text);
-  if (yt) {
-    $('aiResult').textContent = 'Leyendo el título del video…';
-    const info = await youtubeTitle(yt);
-    if (info) { extra = info.title + ' ' + info.author; source = 'Inspirada en «' + info.title + '»' + (info.author ? ' de ' + info.author : '') + '. '; }
-    else source = 'No pude leer el título del video; escribe también el nombre de la canción o el género. ';
+  $('aiGo').disabled = true; $('aiGo').textContent = 'Creando…';
+  $('aiResult').textContent = 'La IA está escuchando lo que pediste…';
+  const yt = Generador.youtubeId(text) || '';
+  const words = text.replace(/https?:\/\/\S+/g, ' ');
+  let r, source = '', note = '';
+  try {
+    const d = await askAi(text, yt);
+    r = Generador.fromPlan(d.plan, SONG.layers, text);
+    if (d.video) source = 'Inspirada en «' + d.video + '». ';
+    note = r.summary ? r.summary + ' ' : '';
+  } catch {
+    let video = '';
+    if (yt) video = await youtubeTitle(yt);
+    if (video) source = 'Inspirada en «' + video + '». ';
+    else if (yt) source = 'No pude leer el título del video; escribe también el nombre de la canción o el género. ';
+    r = Generador.create(words, SONG.layers, video);
+    note = '(La IA no respondió, así que la hice con reglas.) ';
   }
-  const r = Generador.create(text.replace(/https?:\/\/\S+/g, ' '), SONG.layers, extra);
   applyMix(cleanMix(r.mix));
   fixedBpm = r.bpm; $('bpm').value = r.bpm;
   if (mode !== 'fixed') setMode('fixed');
   live(); fill(); draw(); frame(); changed();
-  $('aiResult').innerHTML = esc(source) + '<b>' + esc(r.label) + ' · ' + r.bpm + ' BPM</b> con ' + esc(r.instruments.map(nameOf).join(', ')) +
-    '. Suena con Play; en Recorrido se oye cómo crece. Pulsa <b>Guardar</b> para conservarla.';
-  $('aiGo').disabled = false;
+  $('aiResult').innerHTML = esc(source) + '<b>' + esc(r.label) + ' · ' + r.bpm + ' BPM</b> con ' + esc(r.instruments.map(nameOf).join(', ')) + '. ' +
+    esc(note) + 'En Recorrido se oye cómo crece. Pulsa <b>Guardar</b> para conservarla.';
+  $('aiGo').disabled = false; $('aiGo').textContent = 'Crear música';
   if (!playing && engine) await start();
 }
 $('ai').addEventListener('submit', (e) => { e.preventDefault(); createMusic($('aiText').value); });

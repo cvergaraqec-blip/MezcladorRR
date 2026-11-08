@@ -114,27 +114,44 @@
     const asked = read(rawText + ' ' + extra);
     const known = !!asked.genre;
     const style = GENRES[asked.genre || 'pop'];
-    const rand = rng(text.trim() || 'mezcla');
-    let bpm = asked.bpm || style.bpm + Math.round((rand() - 0.5) * 6);
-    let drums = 1, calm = 1;
+    let bpm = asked.bpm || null, drums = 1, calm = 1;
     const boost = {};
     for (const m of asked.moods) {
-      if (!asked.bpm) bpm += m.bpm;
+      if (!asked.bpm) bpm = (bpm ?? style.bpm) + m.bpm;
       drums *= m.drums; calm *= m.calm;
       for (const id in m.boost || {}) boost[id] = (boost[id] || 1) * m.boost[id];
     }
+    const label = [style.name + (known ? '' : ' (no reconocí el estilo, así que hice una mezcla pop)'), ...asked.moods.map((m) => m.name)].join(', ');
+    const r = build({ weights: style.layers, bpm: bpm ?? style.bpm, jitterBpm: !asked.bpm, drums, calm, boost, extraColour: true }, layers, text);
+    return { ...r, genre: asked.genre || 'pop', label, known, artist: asked.artist };
+  }
+
+  /** Builds the mix from the AI's plan: {style, bpm, summary, layers: [{id, weight}]}. */
+  function fromPlan(plan, layers, text = '') {
+    const ids = new Set(layers.map((l) => l.id));
+    const weights = {};
+    for (const l of (plan && plan.layers) || []) if (ids.has(l.id)) weights[l.id] = Math.max(0.3, Math.min(1.5, Number(l.weight) || 1));
+    if (!Object.keys(weights).length) throw new Error('plan vacío');
+    const bpm = Math.round(Number(plan.bpm)) || 110;
+    const r = build({ weights, bpm, jitterBpm: false, drums: 1, calm: 1, boost: {}, extraColour: false }, layers, norm(text + ' ' + plan.style));
+    return { ...r, genre: plan.style, label: String(plan.style || 'Mezcla'), summary: String(plan.summary || ''), known: true };
+  }
+
+  // Most chosen instruments are fully in by the target BPM, entering one after
+  // another on the way up; the last ones join above it, so running faster still
+  // adds layers. Everything not chosen stays quiet.
+  function build(o, layers, seed) {
+    const rand = rng(seed.trim() || 'mezcla');
+    let bpm = o.bpm + (o.jitterBpm ? Math.round((rand() - 0.5) * 6) : 0);
     bpm = Math.max(50, Math.min(210, bpm));
-
-    // The chosen instruments, in the order they enter in song.json (calm first).
     const byId = Object.fromEntries(layers.map((l) => [l.id, l]));
-    const chosen = layers.filter((l) => style.layers[l.id] || boost[l.id] > 1.15).map((l) => l.id);
-    // Every request gets one extra colour from the kit, picked by the text.
-    const spare = layers.map((l) => l.id).filter((id) => !chosen.includes(id) && !(drums < 1 && !CALM.has(id)));
-    if (spare.length) chosen.push(spare[Math.floor(rand() * spare.length)]);
+    const chosen = layers.filter((l) => o.weights[l.id] || o.boost[l.id] > 1.15).map((l) => l.id);
+    if (o.extraColour) {
+      // Every request gets one extra colour from the kit, picked by the text.
+      const spare = layers.map((l) => l.id).filter((id) => !chosen.includes(id) && !(o.drums < 1 && !CALM.has(id)));
+      if (spare.length) chosen.push(spare[Math.floor(rand() * spare.length)]);
+    }
     chosen.sort((a, b) => byId[a].in[0] - byId[b].in[0] || byId[a].in[1] - byId[b].in[1]);
-
-    // Most of them are fully in by the target BPM, entering one after another
-    // on the way up; the last ones join above it, so running faster still adds layers.
     const n = chosen.length, core = Math.max(1, Math.ceil(n * 0.8));
     const mix = {};
     chosen.forEach((id, i) => {
@@ -145,14 +162,11 @@
       if (l.in[0] === MIN && l.in[1] === MIN && i === 0) { in0 = MIN; in1 = MIN; }
       let out = null;
       if (l.out) { const o0 = clamp(Math.max(in1, bpm + 24 + Math.round(rand() * 10))); out = [o0, clamp(o0 + 24)]; }
-      const w = (style.layers[id] || 0.8) * (boost[id] || 1) * (CALM.has(id) ? calm : drums) * (0.92 + rand() * 0.16);
+      const w = (o.weights[id] || 0.8) * (o.boost[id] || 1) * (CALM.has(id) ? o.calm : o.drums) * (0.92 + rand() * 0.16);
       mix[id] = { in: [in0, Math.max(in0, in1)], out, gain: Math.min(1.5, Math.round(l.gain * w * 1000) / 1000) };
     });
-    // Everything else stays quiet in this mix.
     for (const l of layers) if (!mix[l.id]) mix[l.id] = { gain: 0 };
-
-    const label = [style.name + (known ? '' : ' (no reconocí el estilo, así que hice una mezcla pop)'), ...asked.moods.map((m) => m.name)].join(', ');
-    return { mix, bpm, genre: asked.genre || 'pop', label, instruments: chosen, known, artist: asked.artist };
+    return { mix, bpm, instruments: chosen };
   }
 
   /** The YouTube video id in a link, or null. */
@@ -161,7 +175,7 @@
     return m ? m[1] : null;
   }
 
-  const api = { create, read, youtubeId, GENRES };
+  const api = { create, fromPlan, read, youtubeId, GENRES };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else root.Generador = api;
 })(typeof window !== 'undefined' ? window : globalThis);
