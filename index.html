@@ -119,7 +119,7 @@ ul.how b { color: var(--ink); font-weight: 600; }
   <header>
     <span class="eyebrow">RadioRun · Adaptive music</span>
     <h1>Mezclador <span>RadioRun</span></h1>
-    <p class="sub">Cada fila es un instrumento de la música adaptativa. La parte verde es el rango de BPM en el que suena: arrastra sus bordes para que entre antes o después, o para que dure más o menos. Pulsa Play para oírlo con el mismo motor que la app, y <b>Guardar</b> para conservar la mezcla en <code>mix.json</code>.</p>
+    <p class="sub">Cada fila es un instrumento de la música adaptativa. La parte verde es el rango de BPM en el que suena: arrastra sus bordes para que entre antes o después, o para que dure más o menos. Pulsa Play para oírlo con el mismo motor que la app, y <b>Guardar</b> para conservar la mezcla en este navegador y descargarla como <code>mix.json</code>.</p>
   </header>
 
   <section class="transport" aria-label="Reproducción">
@@ -187,12 +187,15 @@ ul.how b { color: var(--ink); font-weight: 600; }
   <section class="panel" aria-labelledby="saveTitle">
     <h2 id="saveTitle">Guardar</h2>
     <ul class="how">
-      <li><b>Guardar</b> escribe tus rangos y volúmenes en <code>mix.json</code>, en la carpeta del Mezclador. Súbelo a GitHub para compartir la mezcla.</li>
+      <li><b>Guardar</b> conserva tu mezcla en este navegador (sigue ahí la próxima vez que abras la página) y descarga <code>mix.json</code> con tus rangos y volúmenes. Súbelo a GitHub para compartir la mezcla.</li>
+      <li><b>Abrir mix.json</b> carga una mezcla que ya tengas guardada en un archivo.</li>
       <li>Para llevar la mezcla a RadioRun, pasa ese <code>mix.json</code> al proyecto de la app (o a Claude, que lo aplica).</li>
       <li><b>Restablecer todo</b> vuelve a los valores de <code>song.json</code>. Se aplica al guardar.</li>
     </ul>
     <div class="row">
       <button id="save" class="primary" disabled>Guardar</button>
+      <button id="open">Abrir mix.json</button>
+      <input id="openFile" type="file" accept=".json,application/json" hidden>
       <button id="resetAll">Restablecer todo</button>
       <button id="copy">Copiar cambios</button>
       <span id="copyNote" class="note"></span>
@@ -206,7 +209,7 @@ ul.how b { color: var(--ink); font-weight: 600; }
 
 <script>
 'use strict';
-// ---- The song, served by server.cjs from song.json (and mix.json) ----
+// ---- The song: song.json, plus the saved mix (this browser, or mix.json) ----
 let SONG = { layers: [] };
 const NAMES = {
   pad: 'Pad de fondo', air: 'Aire (olas)', flute: 'Flauta de pan', bells: 'Campanas', heartbeat: 'Latido', shaker: 'Shaker', sub: 'Bajo sub',
@@ -342,7 +345,7 @@ async function loadKit() {
   samples = {};
   let done = 0;
   await Promise.all(ids.map(async (id) => {
-    const res = await fetch('/kit/' + id + '.wav');
+    const res = await fetch('kit/' + id + '.wav');
     if (!res.ok) throw new Error(id);
     const buf = await ctx.decodeAudioData(await res.arrayBuffer());
     samples[id] = buf.getChannelData(0);
@@ -630,7 +633,45 @@ drop.addEventListener('dragover', (e) => { e.preventDefault(); drop.classList.ad
 drop.addEventListener('dragleave', () => drop.classList.remove('over'));
 drop.addEventListener('drop', (e) => { e.preventDefault(); drop.classList.remove('over'); addLoopFile(e.dataTransfer.files[0]); });
 
-// ---- Saving (server.cjs writes mix.json) ----
+// ---- Saving: in this browser (localStorage) and as a downloaded mix.json.
+// With node server.cjs, Guardar also writes mix.json in the folder. ----
+const STORE = 'mezcladorrr.mix';
+let hasServer = false;
+const isRange = (r) => Array.isArray(r) && r.length === 2 && r.every((b) => Number.isInteger(b) && b >= MIN && b <= MAX) && r[0] <= r[1];
+/** Keeps only valid changes ({layerId: {in, out, gain}}) that differ from song.json (same rules as server.cjs). */
+function cleanMix(input) {
+  const out = {};
+  if (!input || typeof input !== 'object') return out;
+  for (const l of SONG.layers) {
+    const m = input[l.id];
+    if (!m || typeof m !== 'object') continue;
+    const e = {};
+    if (isRange(m.in)) e.in = [...m.in];
+    if (m.out === null) e.out = null;
+    else if (isRange(m.out) && m.out[0] >= (e.in || l.in)[1]) e.out = [...m.out];
+    if (typeof m.gain === 'number' && m.gain >= 0 && m.gain <= 1.5) e.gain = Math.round(m.gain * 1000) / 1000;
+    if ('in' in e && JSON.stringify(e.in) === JSON.stringify(l.in)) delete e.in;
+    if ('out' in e && JSON.stringify(e.out) === JSON.stringify(l.out)) delete e.out;
+    if ('gain' in e && e.gain === l.gain) delete e.gain;
+    if (Object.keys(e).length) out[l.id] = e;
+  }
+  return out;
+}
+function readStore() { try { const t = localStorage.getItem(STORE); return t ? JSON.parse(t) : null; } catch { return null; } }
+function writeStore(mix) { try { if (Object.keys(mix).length) localStorage.setItem(STORE, JSON.stringify(mix)); else localStorage.removeItem(STORE); return true; } catch { return false; } }
+function download(mix) {
+  const blob = new Blob([JSON.stringify(mix, null, 2) + '\n'], { type: 'application/json' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob); a.download = 'mix.json';
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+}
+function applyMix(mix) {
+  for (const l of SONG.layers) {
+    const d = DEFAULTS[l.id], m = mix[l.id] || {};
+    settings[l.id] = { in: [...(m.in || d.in)], out: 'out' in m ? (m.out ? [...m.out] : null) : d.out ? [...d.out] : null, floor: d.floor, gain: m.gain ?? d.gain };
+  }
+}
 function changes() {
   const out = {};
   for (const id in DEFAULTS) {
@@ -654,17 +695,37 @@ function changed() {
 }
 function setStatus(t, warn = false) { const s = $('status'); s.textContent = t; s.classList.toggle('warn', warn); }
 $('save').addEventListener('click', async () => {
+  const mix = changes();
   $('save').disabled = true;
   setStatus('Guardando…');
   try {
-    const res = await fetch('/api/mix', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(changes()) });
-    const data = await res.json();
-    if (!data.ok) throw new Error(data.error);
-    saved = JSON.stringify(changes());
-    setStatus('Guardado en mix.json.');
+    if (hasServer) {
+      const res = await fetch('api/mix', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(mix) });
+      const data = await res.json();
+      if (!data.ok) throw new Error(data.error);
+      saved = JSON.stringify(mix);
+      setStatus('Guardado en mix.json.');
+      return;
+    }
+    const stored = writeStore(mix);
+    download(mix);
+    saved = JSON.stringify(mix);
+    setStatus(stored ? 'Guardado en este navegador y descargado mix.json.' : 'Descargado mix.json (este navegador no deja guardarlo).', !stored);
   } catch (e) {
     $('save').disabled = false;
     setStatus('No se pudo guardar: ' + (e.message || e), true);
+  }
+});
+$('open').addEventListener('click', () => $('openFile').click());
+$('openFile').addEventListener('change', async (e) => {
+  const file = e.target.files[0]; e.target.value = '';
+  if (!file || !SONG.layers.length) return;
+  try {
+    applyMix(cleanMix(JSON.parse(await file.text())));
+    live(); fill(); draw(); changed();
+    setStatus('Mezcla cargada de ' + file.name + '. Pulsa Guardar para conservarla.');
+  } catch {
+    setStatus('Ese archivo no es un mix.json válido.', true);
   }
 });
 $('copy').addEventListener('click', async () => {
@@ -675,17 +736,24 @@ $('copy').addEventListener('click', async () => {
 
 // ---- Start-up ----
 window.addEventListener('resize', () => { layout(); draw(); });
-fetch('/api/song')
-  .then((r) => { if (!r.ok) throw new Error(); return r.json(); })
-  .then((data) => {
-    useSong(data);
-    layout(); fill(); draw(); changed();
-    return loadKit().then(() => { $('play').disabled = false; $('play').textContent = 'Play'; });
-  })
-  .catch(() => {
-    $('play').textContent = 'Sin sonido';
-    setStatus('Abre el Mezclador con: node server.cjs', true);
-  });
+// song.json and mix.json are plain files next to this page, so it works on any
+// static host (GitHub Pages) as well as with node server.cjs.
+(async () => {
+  const songRes = await fetch('song.json', { cache: 'no-store' });
+  if (!songRes.ok) throw new Error('song.json');
+  hasServer = songRes.headers.get('X-Mezclador') === 'server';
+  const { layers } = await songRes.json();
+  SONG = { layers };
+  let mix = hasServer ? null : readStore();
+  if (!mix) mix = await fetch('mix.json', { cache: 'no-store' }).then((r) => (r.ok ? r.json() : {})).catch(() => ({}));
+  useSong({ layers, mix: cleanMix(mix) });
+  layout(); fill(); draw(); changed();
+  await loadKit();
+  $('play').disabled = false; $('play').textContent = 'Play';
+})().catch(() => {
+  $('play').textContent = 'Sin sonido';
+  setStatus(location.protocol === 'file:' ? 'Abre el Mezclador desde su página web o con: node server.cjs' : 'No se pudo cargar la canción. Recarga la página.', true);
+});
 </script>
 </body>
 </html>

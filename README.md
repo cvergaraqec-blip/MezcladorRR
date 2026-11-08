@@ -6,15 +6,21 @@ Una página para decidir **en qué rango de BPM suena cada instrumento** de la m
 
 ## Abrirlo
 
-Necesitas [Node.js](https://nodejs.org) (versión 18 o más nueva). No hace falta instalar nada más.
+En la web, sin instalar nada: **https://cvergaraqec-blip.github.io/MezcladorRR/**
+
+También puedes abrirlo en tu computador con [Node.js](https://nodejs.org) (versión 18 o más nueva):
 
 ```bash
-git clone https://github.com/orlandoqueb/MezcladorRR.git
+git clone https://github.com/cvergaraqec-blip/MezcladorRR.git
 cd MezcladorRR
 node server.cjs
 ```
 
 Abre http://localhost:8099 en el navegador. Para cerrarlo, `Ctrl+C`.
+
+### Publicarlo en GitHub Pages
+
+En el repositorio, ve a **Settings → Pages**, en *Build and deployment* elige **Deploy from a branch**, rama `main` y carpeta `/ (root)`, y pulsa **Save**. En uno o dos minutos la página queda en `https://<tu-usuario>.github.io/MezcladorRR/`.
 
 ## Usarlo
 
@@ -23,17 +29,18 @@ Abre http://localhost:8099 en el navegador. Para cerrarlo, `Ctrl+C`.
 - **Play:** con **BPM fijo** (el deslizador) o en un **Recorrido** de 45 a 215 BPM en 2 min 30 s. Los cambios se oyen al momento.
 - **M:** silencia una fila solo para escuchar el resto; no se guarda.
 - **Tus loops:** arrastra un WAV o MP3 e indica cuántos beats dura. Sigue el BPM sin cambiar de tono, como la música de Training. Solo se escucha mientras la página está abierta: no se guarda.
-- **Guardar:** escribe tu mezcla en `mix.json`. Haz commit de ese archivo para compartirla.
+- **Guardar:** en la web, conserva tu mezcla en ese navegador (la encuentras ahí la próxima vez) y descarga `mix.json`. Con `node server.cjs`, la escribe directamente en `mix.json` de la carpeta. Haz commit de ese archivo para compartirla: la página lo carga al abrirse.
+- **Abrir mix.json:** carga una mezcla guardada en un archivo.
 
 ## Archivos
 
 | Archivo | Qué es |
 |---|---|
 | `index.html` | La página del Mezclador |
-| `server.cjs` | Servidor local: sirve la página y los sonidos, y guarda `mix.json` |
+| `server.cjs` | Servidor local opcional: sirve la página y los sonidos, y guarda `mix.json` |
 | `song.json` | La canción: las 18 capas, sus patrones y sus rangos de BPM originales |
 | `kit/` | Los 47 sonidos de la canción (WAV) |
-| `mix.json` | Tu mezcla: solo lo que cambia respecto a `song.json` (aparece al guardar) |
+| `mix.json` | Tu mezcla: solo lo que cambia respecto a `song.json` (la descargas al guardar; si está en el repo, la página la carga) |
 
 `song.json` y `kit/` vienen de RadioRun (`scripts/adaptive/song.cjs` y `kit.cjs`), en la versión tranquila: pad suave sin vaivén, flauta de pan en lugar de campanas y olas más bajas. Todos los sonidos son originales, generados por código; no hay grabaciones de terceros.
 
