@@ -163,6 +163,7 @@ ul.how b { color: var(--ink); font-weight: 600; }
           </label>
           <p class="note">Los ajustes se guardan solo en este navegador. La clave viaja únicamente a la función del Mezclador en Supabase, que la usa para llamar a Anthropic y no la guarda. Para que todos los oyentes usen la IA sin poner clave, guárdala en Supabase como secreto <code>ANTHROPIC_API_KEY</code>.</p>
           <p id="aiSetNote" class="note"></p>
+          <p id="aiHere" class="note" hidden><b>En esta vista dentro de Claude</b>, la IA usa tu propia cuenta de Claude (te pide permiso la primera vez) y no necesita clave ni modelo.</p>
         </div>
       </details>
       <p id="aiResult" class="result" role="status">Una IA (Claude) crea una mezcla original con los sonidos del kit, inspirada en lo que le gusta. No copia ni descarga la canción: de un link de YouTube solo lee el título.</p>
@@ -797,6 +798,7 @@ function writeAiSettings() {
 }
 { const s = readAiSettings(); if (s.model) $('aiModel').value = s.model; if (s.key) $('aiKey').value = s.key; }
 $('aiModel').addEventListener('change', writeAiSettings);
+claudeSample().then((sm) => { if (sm) $('aiHere').hidden = false; });
 $('aiKey').addEventListener('change', writeAiSettings);
 async function askAi(text, youtubeId) {
   const ctl = new AbortController(); const t = setTimeout(() => ctl.abort(), 45000);
@@ -809,6 +811,44 @@ async function askAi(text, youtubeId) {
     if (!r.ok || !d.plan) throw new Error(d.error || 'sin respuesta');
     return d;
   } finally { clearTimeout(t); }
+}
+// Inside claude.ai (the preview copy of this page) the AI can be Claude on the
+// viewer's own account, with no key: the `sample` capability. On GitHub Pages
+// there is no window.claude, so the Supabase function is used instead.
+let samplePromise = null;
+function claudeSample() {
+  if (!window.claude || typeof window.claude.use !== 'function') return Promise.resolve(null);
+  samplePromise ??= window.claude.use('sample').catch(() => null);
+  return samplePromise;
+}
+const LAYER_HINTS = {
+  pad: 'pad de fondo suave', air: 'aire, olas, ambiente', flute: 'flauta de pan, melodía tranquila', heartbeat: 'latido grave',
+  shaker: 'shaker, maraca', sub: 'bajo sub', kick: 'bombo', hat: 'charles a corcheas', clap: 'palmas / caja',
+  roll: 'bajo rodante arpegiado', hats16: 'charles en semicorcheas', openhat: 'charles abierto', perc: 'percusión latina / congas',
+  ride: 'platillo ride', acid: 'sintetizador acid 303', stab: 'acordes stab de sintetizador', fill: 'redobles de batería', drive: 'bombo extra, techno duro',
+};
+async function askClaudeHere(text, youtubeId) {
+  const sample = await claudeSample();
+  let video = '';
+  if (youtubeId) video = await youtubeTitle(youtubeId);
+  const ids = SONG.layers.map((l) => l.id);
+  const prompt = `Eres el productor musical de RadioRun, una app de música adaptativa para correr.
+Diseña una mezcla ORIGINAL con el kit de instrumentos de la app que evoque lo que pide el oyente: tempo, energía e instrumentación.
+No reproduzcas ni cites letras ni melodías; solo inspírate en el género y la energía.
+Instrumentos disponibles (id: descripción):
+${ids.map((id) => '- ' + id + ': ' + (LAYER_HINTS[id] || nameOf(id))).join('\n')}
+
+Lo que pide el oyente: ${text.replace(/https?:\/\/\S+/g, ' ').trim() || '(solo envió un link)'}${video ? '\nTítulo del video de YouTube que compartió: ' + video : ''}
+
+Responde SOLO con un objeto JSON, sin texto alrededor, con esta forma:
+{"style": "nombre corto del estilo en español", "bpm": entero entre 50 y 210, "summary": "una frase en español para el oyente", "layers": [{"id": "uno de los ids de arriba", "weight": número de 0.5 a 1.4}]}
+Elige de 4 a 10 instrumentos, en orden de importancia.`;
+  try {
+    const plan = await sample.json(prompt, { modelTier: 'quick' });
+    return { plan, video };
+  } catch (e) {
+    throw new Error(e && e.code === 'not_granted' ? 'no diste permiso para usar Claude' : (e && e.message) || 'sin respuesta');
+  }
 }
 async function youtubeTitle(id) {
   try {
@@ -828,7 +868,7 @@ async function createMusic(text) {
   let r, source = '', note = '';
   try {
     if ($('aiModel').value === 'reglas') throw new Error('reglas');
-    const d = await askAi(text, yt);
+    const d = (await claudeSample()) ? await askClaudeHere(text, yt) : await askAi(text, yt);
     r = Generador.fromPlan(d.plan, SONG.layers, text);
     if (d.video) source = 'Inspirada en «' + d.video + '». ';
     note = r.summary ? r.summary + ' ' : '';
