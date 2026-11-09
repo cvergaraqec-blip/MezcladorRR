@@ -55,6 +55,9 @@ function handle(req, res) {
   if (req.method === 'GET' && (url.pathname === '/' || url.pathname === '/index.html')) {
     return send(res, 200, 'text/html; charset=utf-8', fs.readFileSync(PAGE));
   }
+  if (req.method === 'GET' && url.pathname === '/generador.js') {
+    return send(res, 200, 'text/javascript; charset=utf-8', fs.readFileSync(path.join(ROOT, 'generador.js')));
+  }
   if (req.method === 'GET' && url.pathname === '/song.json') {
     return send(res, 200, 'application/json', fs.readFileSync(SONG));
   }

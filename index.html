@@ -111,6 +111,22 @@ textarea { min-height: 110px; font-size: 12px; resize: vertical; }
 details summary { cursor: pointer; font-weight: 600; }
 ul.how { margin: 0; padding-left: 18px; display: grid; gap: 6px; color: var(--muted); }
 ul.how b { color: var(--ink); font-weight: 600; }
+.ai { display: grid; gap: 8px; margin-top: 12px; padding: 14px; border: 1px solid #556640; border-radius: 12px; background: #1b2414; max-width: 820px; }
+.ai label { font-size: 13px; color: var(--ink); }
+.ai .row { flex-wrap: nowrap; }
+@media (max-width: 560px) { .ai .row { flex-wrap: wrap; } .ai .row button { width: 100%; } }
+.ai input[type=text] {
+  font: 500 15px var(--font-body); color: var(--ink); background: #141a0f; border: 1px solid #4b573c;
+  border-radius: 9px; padding: 8px 12px; min-height: 44px; width: 100%; box-sizing: border-box; flex: 1 1 auto; min-width: 0;
+}
+.ai input[type=text]::placeholder { color: #8a9180; }
+.ai .examples { display: flex; flex-wrap: wrap; gap: 6px; }
+.ai .examples button { min-height: 30px; padding: 0 10px; font-weight: 500; font-size: 12px; color: var(--muted); background: transparent; border-radius: 99px; }
+.ai .result { margin: 0; font-size: 13px; color: var(--muted); }
+.ai .result b { color: var(--lime); font-weight: 600; }
+.aiset summary { font-size: 12.5px; color: var(--muted); font-weight: 600; }
+.aiset-body { display: grid; gap: 10px; padding-top: 10px; }
+.aiset input[type=password] { font: 500 14px var(--font-num); color: var(--ink); background: #141a0f; border: 1px solid #4b573c; border-radius: 9px; padding: 8px 12px; min-height: 40px; width: 100%; box-sizing: border-box; }
 @media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
 </style>
 </head>
@@ -120,6 +136,38 @@ ul.how b { color: var(--ink); font-weight: 600; }
     <span class="eyebrow">RadioRun · Adaptive music</span>
     <h1>Mezclador <span>RadioRun</span></h1>
     <p class="sub">Cada fila es un instrumento de la música adaptativa. La parte verde es el rango de BPM en el que suena: arrastra sus bordes para que entre antes o después, o para que dure más o menos. Pulsa Play para oírlo con el mismo motor que la app, y <b>Guardar</b> para conservar la mezcla en este navegador y descargarla como <code>mix.json</code>.</p>
+    <form id="ai" class="ai" autocomplete="off">
+      <label for="aiText">¿Qué quiere escuchar el oyente?</label>
+      <div class="row">
+        <input id="aiText" type="text" maxlength="300" placeholder="Una canción, un artista, un género o un link de YouTube">
+        <button id="aiGo" class="primary" type="submit" disabled>Crear música</button>
+      </div>
+      <div class="examples" aria-label="Ejemplos">
+        <button type="button">Me gusta Bad Bunny</button>
+        <button type="button">Techno oscuro y rápido</button>
+        <button type="button">Algo tranquilo para relajarme</button>
+        <button type="button">Rock para correr</button>
+      </div>
+      <details class="aiset">
+        <summary>Ajustes de la IA</summary>
+        <div class="aiset-body">
+          <label>Modelo
+            <select id="aiModel">
+              <option value="claude-opus-5-5">Claude Opus 5.5: entiende mejor los gustos (≈1–2 centavos por mezcla)</option>
+              <option value="claude-haiku-5-5">Claude Haiku 5.5: más barato (≈0,1 centavos por mezcla)</option>
+              <option value="reglas">Sin IA: solo reglas (gratis)</option>
+            </select>
+          </label>
+          <label>Tu clave de Anthropic (opcional)
+            <input id="aiKey" type="password" autocomplete="off" spellcheck="false" placeholder="sk-ant-… · si la dejas vacía se usa la del servidor">
+          </label>
+          <p class="note">Los ajustes se guardan solo en este navegador. La clave viaja únicamente a la función del Mezclador en Supabase, que la usa para llamar a Anthropic y no la guarda. Para que todos los oyentes usen la IA sin poner clave, guárdala en Supabase como secreto <code>ANTHROPIC_API_KEY</code>.</p>
+          <p id="aiSetNote" class="note"></p>
+          <p id="aiHere" class="note" hidden><b>En esta vista dentro de Claude</b>, la IA usa tu propia cuenta de Claude (te pide permiso la primera vez) y no necesita clave ni modelo.</p>
+        </div>
+      </details>
+      <p id="aiResult" class="result" role="status">Una IA (Claude) crea una mezcla original con los sonidos del kit, inspirada en lo que le gusta. No copia ni descarga la canción: de un link de YouTube solo lee el título.</p>
+    </form>
   </header>
 
   <section class="transport" aria-label="Reproducción">
@@ -207,6 +255,7 @@ ul.how b { color: var(--ink); font-weight: 600; }
   </section>
 </div>
 
+<script src="generador.js"></script>
 <script>
 'use strict';
 // ---- The song: song.json, plus the saved mix (this browser, or mix.json) ----
@@ -734,6 +783,115 @@ $('copy').addEventListener('click', async () => {
   catch { const t = $('export'); t.closest('details').open = true; t.select(); $('copyNote').textContent = 'Selecciona el texto y cópialo.'; }
 });
 
+// ---- Crear música: what the listener likes → a mix (generador.js) ----
+const esc = (t) => String(t).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+// The AI lives in a small Supabase function (supabase/functions/crear-musica) that
+// keeps the Anthropic key off this page. If it can't answer, the rules in
+// generador.js make the mix right here.
+const AI_URL = 'https://kjakeluquwhmdvpesroj.supabase.co/functions/v1/crear-musica';
+const AI_STORE = 'mezcladorrr.ia';
+function readAiSettings() { try { return JSON.parse(localStorage.getItem(AI_STORE) || '{}'); } catch { return {}; } }
+function writeAiSettings() {
+  const s = { model: $('aiModel').value, key: $('aiKey').value.trim() };
+  try { localStorage.setItem(AI_STORE, JSON.stringify(s)); $('aiSetNote').textContent = 'Guardado en este navegador.'; }
+  catch { $('aiSetNote').textContent = 'Este navegador no deja guardar los ajustes; valen mientras la página esté abierta.'; }
+}
+{ const s = readAiSettings(); if (s.model) $('aiModel').value = s.model; if (s.key) $('aiKey').value = s.key; }
+$('aiModel').addEventListener('change', writeAiSettings);
+claudeSample().then((sm) => { if (sm) $('aiHere').hidden = false; });
+$('aiKey').addEventListener('change', writeAiSettings);
+async function askAi(text, youtubeId) {
+  const ctl = new AbortController(); const t = setTimeout(() => ctl.abort(), 45000);
+  const headers = { 'Content-Type': 'application/json' };
+  const key = $('aiKey').value.trim();
+  if (key) headers['x-anthropic-key'] = key;
+  try {
+    const r = await fetch(AI_URL, { method: 'POST', headers, body: JSON.stringify({ text, youtubeId, model: $('aiModel').value }), signal: ctl.signal });
+    const d = await r.json();
+    if (!r.ok || !d.plan) throw new Error(d.error || 'sin respuesta');
+    return d;
+  } finally { clearTimeout(t); }
+}
+// Inside claude.ai (the preview copy of this page) the AI can be Claude on the
+// viewer's own account, with no key: the `sample` capability. On GitHub Pages
+// there is no window.claude, so the Supabase function is used instead.
+let samplePromise = null;
+function claudeSample() {
+  if (!window.claude || typeof window.claude.use !== 'function') return Promise.resolve(null);
+  samplePromise ??= window.claude.use('sample').catch(() => null);
+  return samplePromise;
+}
+const LAYER_HINTS = {
+  pad: 'pad de fondo suave', air: 'aire, olas, ambiente', flute: 'flauta de pan, melodía tranquila', heartbeat: 'latido grave',
+  shaker: 'shaker, maraca', sub: 'bajo sub', kick: 'bombo', hat: 'charles a corcheas', clap: 'palmas / caja',
+  roll: 'bajo rodante arpegiado', hats16: 'charles en semicorcheas', openhat: 'charles abierto', perc: 'percusión latina / congas',
+  ride: 'platillo ride', acid: 'sintetizador acid 303', stab: 'acordes stab de sintetizador', fill: 'redobles de batería', drive: 'bombo extra, techno duro',
+};
+async function askClaudeHere(text, youtubeId) {
+  const sample = await claudeSample();
+  let video = '';
+  if (youtubeId) video = await youtubeTitle(youtubeId);
+  const ids = SONG.layers.map((l) => l.id);
+  const prompt = `Eres el productor musical de RadioRun, una app de música adaptativa para correr.
+Diseña una mezcla ORIGINAL con el kit de instrumentos de la app que evoque lo que pide el oyente: tempo, energía e instrumentación.
+No reproduzcas ni cites letras ni melodías; solo inspírate en el género y la energía.
+Instrumentos disponibles (id: descripción):
+${ids.map((id) => '- ' + id + ': ' + (LAYER_HINTS[id] || nameOf(id))).join('\n')}
+
+Lo que pide el oyente: ${text.replace(/https?:\/\/\S+/g, ' ').trim() || '(solo envió un link)'}${video ? '\nTítulo del video de YouTube que compartió: ' + video : ''}
+
+Responde SOLO con un objeto JSON, sin texto alrededor, con esta forma:
+{"style": "nombre corto del estilo en español", "bpm": entero entre 50 y 210, "summary": "una frase en español para el oyente", "layers": [{"id": "uno de los ids de arriba", "weight": número de 0.5 a 1.4}]}
+Elige de 4 a 10 instrumentos, en orden de importancia.`;
+  try {
+    const plan = await sample.json(prompt, { modelTier: 'quick' });
+    return { plan, video };
+  } catch (e) {
+    throw new Error(e && e.code === 'not_granted' ? 'no diste permiso para usar Claude' : (e && e.message) || 'sin respuesta');
+  }
+}
+async function youtubeTitle(id) {
+  try {
+    const r = await fetch('https://noembed.com/embed?url=' + encodeURIComponent('https://www.youtube.com/watch?v=' + id));
+    const d = await r.json();
+    if (d && d.title) return d.title + (d.author_name ? ' de ' + d.author_name : '');
+  } catch {}
+  return '';
+}
+async function createMusic(text) {
+  text = text.trim();
+  if (!text || !SONG.layers.length) return;
+  $('aiGo').disabled = true; $('aiGo').textContent = 'Creando…';
+  $('aiResult').textContent = 'La IA está escuchando lo que pediste…';
+  const yt = Generador.youtubeId(text) || '';
+  const words = text.replace(/https?:\/\/\S+/g, ' ');
+  let r, source = '', note = '';
+  try {
+    if ($('aiModel').value === 'reglas') throw new Error('reglas');
+    const d = (await claudeSample()) ? await askClaudeHere(text, yt) : await askAi(text, yt);
+    r = Generador.fromPlan(d.plan, SONG.layers, text);
+    if (d.video) source = 'Inspirada en «' + d.video + '». ';
+    note = r.summary ? r.summary + ' ' : '';
+  } catch (e) {
+    let video = '';
+    if (yt) video = await youtubeTitle(yt);
+    if (video) source = 'Inspirada en «' + video + '». ';
+    else if (yt) source = 'No pude leer el título del video; escribe también el nombre de la canción o el género. ';
+    r = Generador.create(words, SONG.layers, video);
+    note = e.message === 'reglas' ? '' : '(La IA no respondió' + (e.message && e.message !== 'sin respuesta' ? ': ' + e.message : '') + '. La hice con reglas.) ';
+  }
+  applyMix(cleanMix(r.mix));
+  fixedBpm = r.bpm; $('bpm').value = r.bpm;
+  if (mode !== 'fixed') setMode('fixed');
+  live(); fill(); draw(); frame(); changed();
+  $('aiResult').innerHTML = esc(source) + '<b>' + esc(r.label) + ' · ' + r.bpm + ' BPM</b> con ' + esc(r.instruments.map(nameOf).join(', ')) + '. ' +
+    esc(note) + 'En Recorrido se oye cómo crece. Pulsa <b>Guardar</b> para conservarla.';
+  $('aiGo').disabled = false; $('aiGo').textContent = 'Crear música';
+  if (!playing && engine) await start();
+}
+$('ai').addEventListener('submit', (e) => { e.preventDefault(); createMusic($('aiText').value); });
+for (const b of document.querySelectorAll('#ai .examples button')) b.addEventListener('click', () => { $('aiText').value = b.textContent; createMusic(b.textContent); });
+
 // ---- Start-up ----
 window.addEventListener('resize', () => { layout(); draw(); });
 // song.json and mix.json are plain files next to this page, so it works on any
@@ -749,7 +907,7 @@ window.addEventListener('resize', () => { layout(); draw(); });
   useSong({ layers, mix: cleanMix(mix) });
   layout(); fill(); draw(); changed();
   await loadKit();
-  $('play').disabled = false; $('play').textContent = 'Play';
+  $('play').disabled = false; $('play').textContent = 'Play'; $('aiGo').disabled = false;
 })().catch(() => {
   $('play').textContent = 'Sin sonido';
   setStatus(location.protocol === 'file:' ? 'Abre el Mezclador desde su página web o con: node server.cjs' : 'No se pudo cargar la canción. Recarga la página.', true);
