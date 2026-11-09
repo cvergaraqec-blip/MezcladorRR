@@ -44,9 +44,8 @@ function cleanMix(input, layers) {
   return out;
 }
 
-function send(res, status, type, body) {
-  // X-Mezclador tells the page it can save mix.json through this server.
-  res.writeHead(status, { 'Content-Type': type, 'Cache-Control': 'no-store', 'X-Mezclador': 'server' });
+function send(res, status, type, body, headers = {}) {
+  res.writeHead(status, { 'Content-Type': type, 'Cache-Control': 'no-store', ...headers });
   res.end(body);
 }
 
@@ -56,15 +55,12 @@ function handle(req, res) {
     return send(res, 200, 'text/html; charset=utf-8', fs.readFileSync(PAGE));
   }
   if (req.method === 'GET' && url.pathname === '/song.json') {
-    return send(res, 200, 'application/json', fs.readFileSync(SONG));
+    // X-Mezclador tells the page it can save mix.json through this server.
+    return send(res, 200, 'application/json', fs.readFileSync(SONG), { 'X-Mezclador': 'server' });
   }
   if (req.method === 'GET' && url.pathname === '/mix.json') {
     if (!fs.existsSync(MIX)) return send(res, 404, 'text/plain', 'Not found');
     return send(res, 200, 'application/json', fs.readFileSync(MIX));
-  }
-  if (req.method === 'GET' && url.pathname === '/api/song') {
-    const { layers } = readJson(SONG, { layers: [] });
-    return send(res, 200, 'application/json', JSON.stringify({ layers, mix: cleanMix(readJson(MIX, {}), layers) }));
   }
   if (req.method === 'GET' && url.pathname.startsWith('/kit/')) {
     const name = path.basename(url.pathname);

@@ -235,9 +235,8 @@ function useSong(data) {
   SONG = { layers: data.layers };
   for (const l of SONG.layers) {
     DEFAULTS[l.id] = { in: [...l.in], out: l.out ? [...l.out] : null, floor: l.floor, gain: l.gain };
-    const m = (data.mix && data.mix[l.id]) || {};
-    settings[l.id] = { in: [...(m.in || l.in)], out: 'out' in m ? (m.out ? [...m.out] : null) : l.out ? [...l.out] : null, floor: l.floor, gain: m.gain ?? l.gain };
   }
+  applyMix(data.mix || {});
   // Layers without a place in GROUPS (new ones) get a group of their own.
   const known = new Set(GROUPS.flatMap(([, ids]) => ids));
   const extra = SONG.layers.map((l) => l.id).filter((id) => !known.has(id));
@@ -639,10 +638,10 @@ const STORE = 'mezcladorrr.mix';
 let hasServer = false;
 const isRange = (r) => Array.isArray(r) && r.length === 2 && r.every((b) => Number.isInteger(b) && b >= MIN && b <= MAX) && r[0] <= r[1];
 /** Keeps only valid changes ({layerId: {in, out, gain}}) that differ from song.json (same rules as server.cjs). */
-function cleanMix(input) {
+function cleanMix(input, layers) {
   const out = {};
   if (!input || typeof input !== 'object') return out;
-  for (const l of SONG.layers) {
+  for (const l of layers) {
     const m = input[l.id];
     if (!m || typeof m !== 'object') continue;
     const e = {};
@@ -703,14 +702,13 @@ $('save').addEventListener('click', async () => {
       const res = await fetch('api/mix', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(mix) });
       const data = await res.json();
       if (!data.ok) throw new Error(data.error);
-      saved = JSON.stringify(mix);
       setStatus('Guardado en mix.json.');
-      return;
+    } else {
+      const stored = writeStore(mix);
+      download(mix);
+      setStatus(stored ? 'Guardado en este navegador y descargado mix.json.' : 'Descargado mix.json (este navegador no deja guardarlo).', !stored);
     }
-    const stored = writeStore(mix);
-    download(mix);
     saved = JSON.stringify(mix);
-    setStatus(stored ? 'Guardado en este navegador y descargado mix.json.' : 'Descargado mix.json (este navegador no deja guardarlo).', !stored);
   } catch (e) {
     $('save').disabled = false;
     setStatus('No se pudo guardar: ' + (e.message || e), true);
@@ -721,7 +719,7 @@ $('openFile').addEventListener('change', async (e) => {
   const file = e.target.files[0]; e.target.value = '';
   if (!file || !SONG.layers.length) return;
   try {
-    applyMix(cleanMix(JSON.parse(await file.text())));
+    applyMix(cleanMix(JSON.parse(await file.text()), SONG.layers));
     live(); fill(); draw(); changed();
     setStatus('Mezcla cargada de ' + file.name + '. Pulsa Guardar para conservarla.');
   } catch {
@@ -739,14 +737,14 @@ window.addEventListener('resize', () => { layout(); draw(); });
 // song.json and mix.json are plain files next to this page, so it works on any
 // static host (GitHub Pages) as well as with node server.cjs.
 (async () => {
+  // Both files are requested at once; mix.json is only used if this browser has no saved mix.
+  const mixFile = fetch('mix.json', { cache: 'no-store' }).then((r) => (r.ok ? r.json() : {})).catch(() => ({}));
   const songRes = await fetch('song.json', { cache: 'no-store' });
   if (!songRes.ok) throw new Error('song.json');
   hasServer = songRes.headers.get('X-Mezclador') === 'server';
   const { layers } = await songRes.json();
-  SONG = { layers };
-  let mix = hasServer ? null : readStore();
-  if (!mix) mix = await fetch('mix.json', { cache: 'no-store' }).then((r) => (r.ok ? r.json() : {})).catch(() => ({}));
-  useSong({ layers, mix: cleanMix(mix) });
+  const mix = (!hasServer && readStore()) || (await mixFile);
+  useSong({ layers, mix: cleanMix(mix, layers) });
   layout(); fill(); draw(); changed();
   await loadKit();
   $('play').disabled = false; $('play').textContent = 'Play';
