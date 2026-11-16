@@ -254,6 +254,16 @@ ul.how b { color: var(--ink); font-weight: 600; }
 .lic.warn { border-left: 4px solid var(--warn); }
 .tips { margin: 0; padding-left: 18px; display: grid; gap: 6px; color: var(--muted); font-size: 13px; }
 .tips b { color: var(--ink); }
+.inc-hero .src-ico { color: #1a1426; }
+.inc-facts { margin: 0; display: flex; flex-wrap: wrap; gap: 8px; }
+.inc-facts div { padding: 8px 12px; border-radius: 10px; background: #141a0f; border: 1px solid var(--line); }
+.inc-facts dt { font-size: 11.5px; color: var(--muted); }
+.inc-facts dd { margin: 0; font-weight: 600; }
+.inc-facts dd::before { content: '● '; color: var(--lime); }
+.freeitem .t em { font-style: normal; color: var(--muted); font-size: 12px; }
+.freeitem .added { color: var(--lime); font-size: 12px; }
+.cred-box { margin: 0; padding: 10px 12px; border-radius: 10px; background: #141a0f; border: 1px solid var(--line); font-size: 13px; color: var(--ink); overflow-wrap: anywhere; }
+.src-guide a { color: var(--lime); }
 @media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
 </style>
 </head>
@@ -265,7 +275,7 @@ ul.how b { color: var(--ink); font-weight: 600; }
     <nav class="tabs" aria-label="Secciones">
       <a href="#pista" id="tabPista" aria-current="page">Pista</a>
       <a href="#mesa" id="tabMesa">Mesa mezcladora</a>
-      <a href="#fuentes" id="tabFuentes">Fuentes libres</a>
+      <a href="#fuentes" id="tabFuentes">Incompetech</a>
     </nav>
   </header>
   <div id="pagePista" class="page">
@@ -381,15 +391,11 @@ ul.how b { color: var(--ink); font-weight: 600; }
     </section>
     <section class="free" aria-labelledby="freeTitle">
       <div class="free-head">
-        <h2 id="freeTitle">Música libre</h2>
-        <span class="note">Sonidos y canciones con licencia libre (dominio público o Creative Commons que permite uso comercial y remezcla), de Freesound, Jamendo y Wikimedia vía Openverse.</span>
+        <h2 id="freeTitle">Música de Incompetech</h2>
+        <span class="note">Temas de Kevin MacLeod con licencia CC BY 4.0: puedes mezclarlos y remezclarlos, siempre nombrando al autor. El crédito queda guardado con cada tema.</span>
       </div>
       <form id="freeForm" class="row" autocomplete="off">
-        <input id="freeQ" type="search" placeholder="Busca: drum loop, cumbia, guitarra, synth…" aria-label="Buscar música libre">
-        <div class="seg" role="group" aria-label="Tipo">
-          <button type="button" id="freeLoops" aria-pressed="true">Loops</button>
-          <button type="button" id="freeSongs" aria-pressed="false">Canciones</button>
-        </div>
+        <input id="freeQ" type="search" placeholder="Busca por nombre, ánimo o instrumento: piano, rock, alegre…" aria-label="Buscar en Incompetech">
         <button class="primary" type="submit">Buscar</button>
       </form>
       <div id="freeList" class="freelist"></div>
@@ -405,33 +411,43 @@ ul.how b { color: var(--ink); font-weight: 600; }
   </div>
 
   <div id="pageFuentes" class="page" hidden>
-    <section class="src-hero">
-      <h2>Música sin problemas de derechos de autor</h2>
-      <p>Sitios donde puedes bajar canciones, loops y efectos para usar en tus mezclas y en la app. Cada uno tiene sus reglas: mira la licencia, si pide que nombres al autor y si permite uso comercial.</p>
-      <div class="src-filters" role="group" aria-label="Filtrar">
-        <button type="button" data-f="all" aria-pressed="true">Todas</button>
-        <button type="button" data-f="loops" aria-pressed="false">Loops</button>
-        <button type="button" data-f="songs" aria-pressed="false">Canciones</button>
-        <button type="button" data-f="fx" aria-pressed="false">Efectos</button>
-        <button type="button" data-f="nocredit" aria-pressed="false">Sin crédito obligatorio</button>
-      </div>
+    <section class="src-hero inc-hero">
+      <div class="src-top"><div class="src-ico" style="background:#c79bff">I</div><div><h2>Incompetech</h2><small>Kevin MacLeod · incompetech.com</small></div></div>
+      <p>Más de 1.400 temas para usar sin problemas de derechos: los escuchas aquí mismo y los llevas a tu mezcla con un clic. Solo hay que nombrar al autor, y la app guarda ese crédito por ti.</p>
+      <dl class="inc-facts">
+        <div><dt>Licencia</dt><dd>CC BY 4.0</dd></div>
+        <div><dt>Nombrar al autor</dt><dd>Sí, siempre</dd></div>
+        <div><dt>Uso comercial</dt><dd>Sí</dd></div>
+        <div><dt>Remezclar</dt><dd>Sí</dd></div>
+      </dl>
     </section>
-    <div id="srcGrid" class="src-grid"></div>
-    <section class="src-guide" aria-labelledby="licTitle">
-      <h2 id="licTitle">Guía rápida de licencias</h2>
-      <div class="lic-grid">
-        <div class="lic ok"><b>CC0 / Dominio público</b><span>Úsalo como quieras, sin nombrar al autor.</span></div>
-        <div class="lic ok"><b>CC BY</b><span>Libre, también comercial, pero debes nombrar al autor y la licencia.</span></div>
-        <div class="lic ok"><b>CC BY-SA</b><span>Como CC BY, y lo que crees con él debe compartirse con la misma licencia.</span></div>
-        <div class="lic no"><b>CC BY-NC</b><span>Prohíbe el uso comercial. Evítalo para la app.</span></div>
-        <div class="lic no"><b>CC BY-ND</b><span>Prohíbe modificarlo, así que no sirve para mezclar ni remezclar.</span></div>
-        <div class="lic warn"><b>Licencia propia del sitio</b><span>Pixabay, Uppbeat, YouTube: lee sus condiciones; suelen permitir uso en videos y proyectos, pero no revender la pista tal cual.</span></div>
+    <section class="free inc-lib" aria-labelledby="incTitle">
+      <div class="free-head">
+        <h2 id="incTitle">Biblioteca</h2>
+        <span class="note" id="incCount">Cargando el catálogo…</span>
       </div>
+      <form id="incForm" class="row" autocomplete="off">
+        <input id="incQ" type="search" placeholder="Busca por nombre o instrumento: piano, guitar, drums…" aria-label="Buscar en Incompetech">
+        <button class="primary" type="submit">Buscar</button>
+      </form>
+      <div class="src-filters" id="incFeels" role="group" aria-label="Ánimo"></div>
+      <div class="src-filters" id="incTempo" role="group" aria-label="Ritmo">
+        <button type="button" data-t="all" aria-pressed="true">Cualquier ritmo</button>
+        <button type="button" data-t="slow" aria-pressed="false">Lento (menos de 100 BPM)</button>
+        <button type="button" data-t="mid" aria-pressed="false">Para trotar (100 a 140)</button>
+        <button type="button" data-t="fast" aria-pressed="false">Para correr (más de 140)</button>
+      </div>
+      <div id="incList" class="freelist"></div>
+      <div class="row"><button type="button" id="incMore" hidden>Ver más</button></div>
+    </section>
+    <section class="src-guide" aria-labelledby="credTitle">
+      <h2 id="credTitle">Cómo dar crédito</h2>
+      <p class="note">Donde publiques algo con estos temas (la descripción de un video, la pantalla de créditos de la app), pon el nombre del tema y esta línea:</p>
+      <p class="cred-box"><b>«Título del tema» Kevin MacLeod (incompetech.com)</b><br>Licensed under Creative Commons: By Attribution 4.0<br>https://creativecommons.org/licenses/by/4.0/</p>
       <ul class="tips">
-        <li><b>Guarda la prueba:</b> el enlace de la pista y una captura de su licencia el día que la bajas. Las licencias pueden cambiar.</li>
-        <li><b>Nombra al autor</b> cuando la licencia lo pida, por ejemplo: «Título» de Autor, CC BY 4.0, enlace.</li>
-        <li><b>Música libre</b>, en la Mesa mezcladora, ya busca solo sonidos CC0, CC BY y CC BY-SA, y guarda el crédito de cada uno.</li>
-        <li>Esta guía es orientativa, no es asesoría legal. Ante la duda, revisa las condiciones de cada sitio.</li>
+        <li>Cada tema que agregas a una mezcla queda con su crédito en <b>Tus loops</b> y en <b>Mis mezclas</b>.</li>
+        <li>Si alguna vez no puedes poner el crédito, Incompetech vende una licencia que lo evita. <a href="https://incompetech.com/music/royalty-free/faq.html" target="_blank" rel="noopener">Preguntas frecuentes ↗</a></li>
+        <li>Esta guía es orientativa, no es asesoría legal.</li>
       </ul>
     </section>
   </div>
@@ -1324,7 +1340,7 @@ async function openMixById(id, then) {
     } catch { missing++; }
   }
   loadingMix = false;
-  if (missing) setStatus(missing === 1 ? 'No pude volver a cargar 1 loop de Música libre (¿sin conexión?).' : 'No pude volver a cargar ' + missing + ' loops de Música libre (¿sin conexión?).', true);
+  if (missing) setStatus(missing === 1 ? 'No pude volver a cargar 1 tema (¿sin conexión?).' : 'No pude volver a cargar ' + missing + ' temas (¿sin conexión?).', true);
   renderLoops(); layout();
   fixedBpm = m.bpm || fixedBpm; $('bpm').value = fixedBpm;
   if (mode !== 'fixed') setMode('fixed');
@@ -1341,7 +1357,7 @@ function renderMixes() {
       const when = new Date(m.created).toLocaleString('es', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
       row.innerHTML = '<div class="t"><strong></strong><span></span></div>';
       row.querySelector('strong').textContent = m.name + (m.id === openMix ? ' (abierta)' : '');
-      row.querySelector('span').textContent = [m.style, (m.bpm || '?') + ' BPM', (m.loops || []).length ? m.loops.length + (m.loops.length === 1 ? ' loop libre' : ' loops libres') : '', when].filter(Boolean).join(' · ');
+      row.querySelector('span').textContent = [m.style, (m.bpm || '?') + ' BPM', (m.loops || []).length ? m.loops.length + (m.loops.length === 1 ? ' tema' : ' temas') : '', when].filter(Boolean).join(' · ');
       const acts = document.createElement('div'); acts.className = 'acts'; row.appendChild(acts);
       const mk = (label, fn) => { const b = document.createElement('button'); b.type = 'button'; b.textContent = label; b.addEventListener('click', fn); acts.appendChild(b); return b; };
       mk('▶ Escuchar', async () => { stopPreview(); await openMixById(m.id); if (!playing && engine) await start(); }).className = 'go';
@@ -1523,139 +1539,130 @@ $('deskReset').addEventListener('click', () => {
   soloed.clear(); applyEchoMaster(); saveDesk(); live(); buildDesk();
 });
 
-// ---- Música libre: search free-licensed audio (Openverse: Freesound, Jamendo,
-// Wikimedia), listen, and add it to the mix as a new channel. Only licences that
-// allow commercial use and remixing: CC0, CC BY, CC BY-SA. ----
-const LIC = { cc0: 'Dominio público (CC0)', pdm: 'Dominio público', by: 'CC BY: menciona al autor', 'by-sa': 'CC BY-SA: menciona al autor y comparte igual' };
-let freeMode = 'loops';
-function setFreeMode(m) {
-  freeMode = m;
-  $('freeLoops').setAttribute('aria-pressed', String(m === 'loops'));
-  $('freeSongs').setAttribute('aria-pressed', String(m === 'songs'));
-  if ($('freeQ').value.trim()) searchFree();
+// ---- Incompetech: Kevin MacLeod's music (CC BY 4.0) inside the app. The
+// catalog and the MP3s come through our Supabase function "incompetech", because
+// incompetech.com doesn't let pages read its files directly. Listening uses the
+// MP3 straight from incompetech.com. ----
+const INC_API = 'https://kjakeluquwhmdvpesroj.supabase.co/functions/v1/incompetech';
+const INC_MP3 = 'https://incompetech.com/music/royalty-free/mp3-royaltyfree/';
+const FEELS = {
+  Bright: 'Alegre', Uplifting: 'Inspirador', Bouncy: 'Saltarín', Grooving: 'Con groove', Driving: 'Con empuje', Action: 'Acción',
+  Epic: 'Épico', Intense: 'Intenso', Aggressive: 'Agresivo', Relaxed: 'Relajado', Calming: 'Tranquilo', Humorous: 'Divertido',
+  Mysterious: 'Misterioso', Mystical: 'Místico', Dark: 'Oscuro', Somber: 'Triste', Suspenseful: 'Suspenso', Eerie: 'Inquietante', Unnerving: 'Tenso',
+};
+// Spanish words people may type, to the catalog's English.
+const ES_EN = { piano: 'piano', guitarra: 'guitar', bateria: 'drums', 'batería': 'drums', bajo: 'bass', cuerdas: 'strings', violin: 'violin', 'violín': 'violin',
+  sintetizador: 'synth', synth: 'synth', flauta: 'flute', trompeta: 'trumpet', saxofon: 'sax', 'saxofón': 'sax', orquesta: 'orchestra', coro: 'choir', organo: 'organ', 'órgano': 'organ', percusion: 'percussion', 'percusión': 'percussion' };
+let incAll = null, incLoading = null, incFeel = '', incTempo = 'all', incShown = 30, incResults = [];
+const incCredit = (x) => ({
+  text: '«' + x.t + '» Kevin MacLeod (incompetech.com) · CC BY 4.0',
+  link: x.i ? 'https://incompetech.com/music/royalty-free/index.html?isrc=' + encodeURIComponent(x.i) : 'https://incompetech.com/music/royalty-free/',
+});
+const incSrc = (x) => INC_API + '?f=' + encodeURIComponent(x.f);
+function incCatalog() {
+  if (incAll) return Promise.resolve(incAll);
+  if (!incLoading) incLoading = fetch(INC_API + '?list', { signal: AbortSignal.timeout(20000) })
+    .then((r) => (r.ok ? r.json() : null)).then((d) => (incAll = Array.isArray(d) ? d : null)).catch(() => null)
+    .finally(() => { incLoading = null; });
+  return incLoading;
 }
-$('freeLoops').addEventListener('click', () => setFreeMode('loops'));
-$('freeSongs').addEventListener('click', () => setFreeMode('songs'));
+const OFFLINE = '<p class="note">No pude conectar con Incompetech. Si estás en la vista de Claude, ábrelo en tu copia local (localhost:8099): aquí se bloquean las conexiones externas.</p>';
+function incSearch(q, feel, tempo) {
+  const words = fold(q).split(' ').filter(Boolean).map((w) => fold(ES_EN[w] || w));
+  for (const [en, es] of Object.entries(FEELS)) { const i = words.indexOf(fold(es)); if (i >= 0) words[i] = fold(en); }
+  return incAll.filter((x) => {
+    if (feel && !x.feel.split(',').map((s) => s.trim()).includes(feel)) return false;
+    if (tempo === 'slow' && !(x.b && x.b < 100)) return false;
+    if (tempo === 'mid' && !(x.b >= 100 && x.b <= 140)) return false;
+    if (tempo === 'fast' && !(x.b > 140)) return false;
+    if (!words.length) return true;
+    const hay = fold([x.t, x.feel, x.ins, x.d].join(' '));
+    return words.every((w) => hay.includes(w));
+  });
+}
+const mmss = (s) => Math.floor(s / 60) + ':' + String(s % 60).padStart(2, '0');
+function incRow(x) {
+  const row = document.createElement('div'); row.className = 'freeitem';
+  row.innerHTML = '<div class="t"><strong></strong><span></span><em></em><a target="_blank" rel="noopener"></a></div>';
+  row.querySelector('strong').textContent = x.t;
+  const feels = x.feel.split(',').map((s) => FEELS[s.trim()]).filter(Boolean).join(', ');
+  row.querySelector('span').textContent = [feels, x.b ? x.b + ' BPM' : '', x.s ? mmss(x.s) : ''].filter(Boolean).join(' · ');
+  row.querySelector('em').textContent = x.ins;
+  const a = row.querySelector('a'); a.href = incCredit(x).link; a.textContent = 'CC BY 4.0 · ver en Incompetech ↗';
+  const play = document.createElement('button'); play.type = 'button'; play.textContent = '▶ Escuchar'; play.setAttribute('aria-pressed', 'false');
+  play.addEventListener('click', () => {
+    if (previewBtn === play) { stopPreview(); play.textContent = '▶ Escuchar'; return; }
+    if (previewBtn) previewBtn.textContent = '▶ Escuchar';
+    stopPreview(); if (playing) stop();
+    preview.src = INC_MP3 + encodeURIComponent(x.f); preview.play().catch(() => {});
+    previewBtn = play; play.setAttribute('aria-pressed', 'true'); play.textContent = '■ Parar';
+  });
+  const add = document.createElement('button'); add.type = 'button'; add.className = 'primary'; add.textContent = '+ Usar en la mezcla';
+  add.addEventListener('click', () => incAdd(x, add, row));
+  row.append(play, add);
+  return row;
+}
+async function incAdd(x, btn, row) {
+  btn.disabled = true; btn.textContent = 'Trayendo el tema…';
+  let ok = false;
+  try {
+    if (!ctx) await loadKit();
+    const r = await fetch(incSrc(x)); if (!r.ok) throw new Error();
+    const blob = await r.blob();
+    const fresh = !openMix;
+    // A new mix takes the track's own tempo, so it plays at its natural speed.
+    if (fresh && x.b) { fixedBpm = Math.min(MAX, Math.max(MIN, x.b)); $('bpm').value = fixedBpm; if (mode !== 'fixed') setMode('fixed'); frame(); }
+    ok = await addLoopFile(new File([blob], x.f), { name: x.t, bpm: x.b || null, src: incSrc(x), credit: incCredit(x) });
+    if (ok && fresh) addMix(x.t, 'Incompetech', fixedBpm);
+  } catch {}
+  if (!ok) { btn.disabled = false; btn.textContent = 'No se pudo traer. Reintentar'; return; }
+  btn.textContent = '✓ En la mezcla';
+  if (!row.querySelector('.go-mesa')) {
+    const go = document.createElement('button'); go.type = 'button'; go.className = 'go-mesa'; go.textContent = 'Abrir en la Mesa →';
+    go.addEventListener('click', () => { pageNow = 'mesa'; try { history.replaceState(null, '', '#mesa'); } catch {} showPage(); });
+    if ($('pageMesa').hidden) row.appendChild(go);
+  }
+}
+function incRender(list, items, limit) {
+  list.innerHTML = '';
+  for (const x of items.slice(0, limit)) list.appendChild(incRow(x));
+}
+// Mesa: a quick search box.
 async function searchFree() {
   const q = $('freeQ').value.trim(); if (!q) return;
   const list = $('freeList'); list.innerHTML = '<p class="note">Buscando…</p>';
-  const url = 'https://api.openverse.org/v1/audio/?page_size=12&license=cc0,pdm,by,by-sa&q=' + encodeURIComponent(q) +
-    (freeMode === 'loops' ? '&length=shortest,short' : '&length=medium,long&category=music');
-  let d;
-  try { const r = await fetch(url, { signal: AbortSignal.timeout(10000) }); d = await r.json(); } catch { d = null; }
-  if (!d) { list.innerHTML = '<p class="note">No pude conectar con la biblioteca de música libre. Si estás en la vista de Claude, ábrelo en tu página pública: aquí se bloquean las conexiones externas.</p>'; return; }
-  const res = (d.results || []).filter((x) => x.url && LIC[x.license]);
-  if (!res.length) { list.innerHTML = '<p class="note">No encontré nada con licencia libre para «' + esc(q) + '». Prueba en inglés (drum loop, guitar, bass, piano…).</p>'; return; }
-  list.innerHTML = '';
-  for (const x of res) {
-    const row = document.createElement('div'); row.className = 'freeitem';
-    const secs = x.duration ? Math.round(x.duration / 1000) : 0;
-    const len = secs ? (secs >= 60 ? Math.floor(secs / 60) + ':' + String(secs % 60).padStart(2, '0') : secs + ' s') : '';
-    row.innerHTML = '<div class="t"><strong></strong><span></span><a target="_blank" rel="noopener"></a></div>';
-    row.querySelector('strong').textContent = x.title || 'Sin título';
-    row.querySelector('span').textContent = [x.creator, x.source, len].filter(Boolean).join(' · ');
-    const a = row.querySelector('a'); a.href = x.foreign_landing_url || x.url; a.textContent = LIC[x.license] + ' ↗';
-    const play = document.createElement('button'); play.type = 'button'; play.textContent = '▶ Escuchar'; play.setAttribute('aria-pressed', 'false');
-    play.addEventListener('click', () => {
-      if (previewBtn === play) { stopPreview(); play.textContent = '▶ Escuchar'; return; }
-      if (previewBtn) previewBtn.textContent = previewBtn.textContent.replace('■ Parar', '▶ Escuchar');
-      stopPreview(); if (playing) stop();
-      preview.src = x.url; preview.play().catch(() => {});
-      previewBtn = play; play.setAttribute('aria-pressed', 'true'); play.textContent = '■ Parar';
-    });
-    row.appendChild(play);
-    if (secs && secs <= 90) {
-      const add = document.createElement('button'); add.type = 'button'; add.className = 'primary'; add.textContent = '+ Agregar a la mezcla';
-      add.addEventListener('click', async () => {
-        add.disabled = true; add.textContent = 'Agregando…';
-        let ok = false;
-        try {
-          const r = await fetch(x.url); if (!r.ok) throw new Error();
-          const blob = await r.blob();
-          const m = String(x.title || '').match(/(\d{2,3})\s*bpm/i);
-          ok = await addLoopFile(new File([blob], (x.title || 'loop') + '.mp3'), {
-            name: x.title, bpm: m ? Number(m[1]) : null,
-            src: x.url,
-            credit: { text: '«' + (x.title || '') + '» de ' + (x.creator || 'autor desconocido') + ' · ' + LIC[x.license], link: x.foreign_landing_url || x.url },
-          });
-        } catch {}
-        add.textContent = ok ? '✓ Agregado' : 'No se pudo agregar';
-        if (!ok) add.disabled = false;
-      });
-      row.appendChild(add);
-    } else {
-      const n = document.createElement('span'); n.className = 'note'; n.textContent = 'Solo para escuchar (muy larga para un loop)'; row.appendChild(n);
-    }
-    list.appendChild(row);
-  }
+  if (!(await incCatalog())) { list.innerHTML = OFFLINE; return; }
+  const res = incSearch(q, '', 'all');
+  if (!res.length) { list.innerHTML = '<p class="note">No encontré temas para «' + esc(q) + '». Prueba con un ánimo (alegre, épico, tranquilo) o un instrumento (piano, guitar, drums).</p>'; return; }
+  incRender(list, res, 12);
 }
 $('freeForm').addEventListener('submit', (e) => { e.preventDefault(); searchFree(); });
-
-// ---- Fuentes libres: where to get music without copyright trouble ----
-const SOURCES = [
-  { name: 'Pixabay Music', url: 'https://pixabay.com/music/', color: '#7ed6a5', kinds: ['songs', 'fx'],
-    what: 'Miles de canciones y efectos de sonido de muchos géneros, listos para descargar en MP3.',
-    license: 'Licencia de contenido de Pixabay', credit: ['yes', 'No'], commercial: ['yes', 'Sí'], account: 'No (sí para algunas descargas)',
-    tip: 'No se puede vender la pista sola tal cual. Algunas canciones tienen Content ID en YouTube: si te llega un reclamo, se aclara con la licencia.' },
-  { name: 'Freesound', url: 'https://freesound.org/search/?f=license:%22Creative+Commons+0%22', color: '#f2c46d', kinds: ['loops', 'fx'],
-    what: 'La mayor biblioteca de sonidos libres: loops, golpes de batería, instrumentos, ambientes y efectos.',
-    license: 'Cada sonido tiene la suya: CC0, CC BY o CC BY-NC', credit: ['mid', 'Solo en CC BY'], commercial: ['mid', 'Sí en CC0 y CC BY; no en NC'], account: 'Sí, gratis',
-    tip: 'Filtra por CC0 (el enlace ya lo hace) y no uses los CC BY-NC en la app. Ya está conectado en Música libre.' },
-  { name: 'Looperman', url: 'https://www.looperman.com/loops', color: '#ff8f6b', kinds: ['loops'],
-    what: 'Loops subidos por productores, ordenados por género, BPM y tonalidad. Ideal para armar pistas.',
-    license: 'Loops libres de regalías para tu propia música', credit: ['yes', 'No en loops'], commercial: ['yes', 'Sí, dentro de una canción tuya'], account: 'Sí, gratis',
-    tip: 'No puedes revender los loops sueltos. Las voces (acapellas) tienen otras reglas: ahí sí se pide permiso o crédito.' },
-  { name: 'Free Music Archive', url: 'https://freemusicarchive.org/', color: '#8fb8ff', kinds: ['songs'],
-    what: 'Canciones completas de artistas independientes, con licencias Creative Commons.',
-    license: 'Variable por canción: CC0, CC BY, CC BY-SA, NC, ND…', credit: ['mid', 'Sí, salvo CC0'], commercial: ['mid', 'Depende de la canción'], account: 'Sí, para descargar',
-    tip: 'Elige solo CC0, CC BY o CC BY-SA. Evita las que dicen NC (no comercial) o ND (sin modificar).' },
-  { name: 'Incompetech', url: 'https://incompetech.com/music/royalty-free/music.html', color: '#c79bff', kinds: ['songs'],
-    what: 'Más de 2.000 temas de Kevin MacLeod, buscables por género y sensación. Muy usados en videos.',
-    license: 'CC BY 4.0', credit: ['mid', 'Sí, siempre'], commercial: ['yes', 'Sí'], account: 'No',
-    tip: 'Copia el crédito que da cada tema. Si no quieres poner crédito, el sitio vende una licencia que lo evita.' },
-  { name: 'YouTube Audio Library', url: 'https://studio.youtube.com/channel/UC/music', color: '#ff6b6b', kinds: ['songs', 'fx'],
-    what: 'Música y efectos gratis de YouTube, dentro de YouTube Studio.',
-    license: 'Licencia propia de YouTube', credit: ['mid', 'Algunas pistas sí'], commercial: ['mid', 'Pensada para videos, también monetizados'], account: 'Sí, cuenta de YouTube',
-    tip: 'Fíjate en el ícono de atribución: si la pista lo tiene, copia el texto de crédito en tu proyecto.' },
-  { name: 'Uppbeat', url: 'https://uppbeat.io/', color: '#5fe0e0', kinds: ['songs', 'fx'],
-    what: 'Música de productores pensada para creadores de contenido, con buena calidad de producción.',
-    license: 'Licencia propia de Uppbeat', credit: ['mid', 'Sí en el plan gratis'], commercial: ['mid', 'Sí, para tu contenido'], account: 'Sí, gratis (con límite de descargas al mes)',
-    tip: 'En el plan gratis tienes un número limitado de descargas al mes y debes poner el crédito que te da cada pista.' },
-  { name: 'Openverse', url: 'https://openverse.org/search/audio?license_type=commercial,modification', color: '#d0ef89', kinds: ['loops', 'songs', 'fx'],
-    what: 'Buscador de Creative Commons que reúne Freesound, Jamendo, Wikimedia y más en un solo lugar.',
-    license: 'La de cada obra (el enlace ya filtra comercial + modificable)', credit: ['mid', 'Según la licencia'], commercial: ['yes', 'Sí, con el filtro'], account: 'No',
-    tip: 'Es la fuente que usa Música libre dentro de esta app: ahí puedes buscar y agregar sin salir del Mezclador.' },
-];
-let srcFilter = 'all';
-function renderSources() {
-  const grid = $('srcGrid'); grid.innerHTML = '';
-  for (const x of SOURCES) {
-    if (srcFilter === 'nocredit' ? x.credit[0] !== 'yes' : srcFilter !== 'all' && !x.kinds.includes(srcFilter)) continue;
-    const c = document.createElement('article'); c.className = 'src';
-    const kindName = { loops: 'Loops', songs: 'Canciones', fx: 'Efectos' };
-    c.innerHTML = '<div class="src-top"><div class="src-ico"></div><div><h3></h3><small></small></div></div><p class="what"></p><div class="tags"></div>' +
-      '<dl><dt>Licencia</dt><dd class="lic-v"></dd><dt>Nombrar al autor</dt><dd class="cr"></dd><dt>Uso comercial</dt><dd class="co"></dd><dt>Cuenta</dt><dd class="ac"></dd></dl>' +
-      '<p class="tip"></p><a class="go" target="_blank" rel="noopener">Abrir sitio ↗</a>';
-    const ico = c.querySelector('.src-ico'); ico.textContent = x.name[0]; ico.style.background = x.color;
-    c.querySelector('h3').textContent = x.name;
-    c.querySelector('small').textContent = new URL(x.url).hostname.replace(/^www\./, '');
-    c.querySelector('.what').textContent = x.what;
-    for (const k of x.kinds) { const t = document.createElement('span'); t.textContent = kindName[k]; c.querySelector('.tags').appendChild(t); }
-    c.querySelector('.lic-v').textContent = x.license;
-    const cr = c.querySelector('.cr'); cr.className = 'cr ' + (x.credit[0] === 'yes' ? 'yes' : 'mid'); cr.textContent = x.credit[1];
-    const co = c.querySelector('.co'); co.className = 'co ' + x.commercial[0]; co.textContent = x.commercial[1];
-    c.querySelector('.ac').textContent = x.account;
-    c.querySelector('.tip').textContent = x.tip;
-    c.querySelector('a.go').href = x.url;
-    grid.appendChild(c);
-  }
+// Incompetech page: the whole library, with mood and tempo filters.
+function incFilter() {
+  if (!incAll) return;
+  incResults = incSearch($('incQ').value.trim(), incFeel, incTempo);
+  $('incCount').textContent = incResults.length === incAll.length ? incAll.length + ' temas' : incResults.length + ' de ' + incAll.length + ' temas';
+  if (!incResults.length) { $('incList').innerHTML = '<p class="note">Nada con esos filtros. Quita alguno o prueba otra palabra.</p>'; $('incMore').hidden = true; return; }
+  incRender($('incList'), incResults, incShown);
+  $('incMore').hidden = incResults.length <= incShown;
 }
-for (const b of document.querySelectorAll('.src-filters button')) b.addEventListener('click', () => {
-  srcFilter = b.dataset.f;
-  for (const o of document.querySelectorAll('.src-filters button')) o.setAttribute('aria-pressed', String(o === b));
-  renderSources();
-});
-renderSources();
+function incPress(box, attr, val) { for (const b of box.querySelectorAll('button')) b.setAttribute('aria-pressed', String(b.dataset[attr] === val)); }
+(() => {
+  const box = $('incFeels');
+  const all = document.createElement('button'); all.type = 'button'; all.dataset.feel = ''; all.textContent = 'Cualquier ánimo'; box.appendChild(all);
+  for (const [en, es] of Object.entries(FEELS)) { const b = document.createElement('button'); b.type = 'button'; b.dataset.feel = en; b.textContent = es; box.appendChild(b); }
+  incPress(box, 'feel', '');
+  box.addEventListener('click', (e) => { const b = e.target.closest('button'); if (!b) return; incFeel = b.dataset.feel; incPress(box, 'feel', incFeel); incShown = 30; incFilter(); });
+  $('incTempo').addEventListener('click', (e) => { const b = e.target.closest('button'); if (!b) return; incTempo = b.dataset.t; incPress($('incTempo'), 't', incTempo); incShown = 30; incFilter(); });
+})();
+$('incForm').addEventListener('submit', (e) => { e.preventDefault(); incShown = 30; incFilter(); });
+$('incMore').addEventListener('click', () => { incShown += 30; incFilter(); });
+async function incOpen() {
+  if (incAll) return;
+  $('incList').innerHTML = '<p class="note">Cargando el catálogo de Incompetech…</p>';
+  if (!(await incCatalog())) { $('incCount').textContent = 'Sin conexión'; $('incList').innerHTML = OFFLINE; return; }
+  incFilter();
+}
 
 // ---- Sub-pages: #pista and #mesa. The transport (Play, BPM) goes with the one shown. ----
 // Tabs work by click (not only by the #hash), so they also work inside previews
@@ -1670,6 +1677,7 @@ function showPage() {
   }
   if (pageNow === 'mesa') { $('transportSlot').appendChild($('transport')); buildDesk(); requestAnimationFrame(meters); }
   else if (pageNow === 'pista') { $('pistaTop').after($('transport')); layout(); draw(); }
+  else if (pageNow === 'fuentes') incOpen();
 }
 for (const [name, [, tab]] of Object.entries(PAGES)) {
   $(tab).addEventListener('click', (e) => {
