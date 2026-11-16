@@ -205,6 +205,21 @@ ul.how b { color: var(--ink); font-weight: 600; }
 .adv[open] > summary span::before { content: '▾ '; }
 .adv > summary small { color: var(--muted); font-size: 12.5px; font-weight: 400; }
 .adv-body { display: grid; gap: 18px; padding: 0 14px 16px; }
+.free { display: grid; gap: 10px; padding: 16px; border: 1px solid var(--border); border-radius: 16px; background: var(--panel); }
+.free-head { display: grid; gap: 2px; }
+.free-head h2 { font-size: 16px; }
+.free form { flex-wrap: nowrap; }
+.free input[type=search] { flex: 1 1 auto; min-width: 0; font: 500 15px var(--font-body); color: var(--ink); background: #141a0f; border: 1px solid #4b573c; border-radius: 10px; padding: 8px 12px; min-height: 42px; }
+@media (max-width: 620px) { .free form { flex-wrap: wrap; } .free input[type=search] { flex-basis: 100%; } }
+.freelist { display: grid; gap: 6px; }
+.freeitem { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; padding: 8px 10px; border: 1px solid var(--line); border-radius: 10px; background: #161c11; }
+.freeitem .t { flex: 1 1 220px; min-width: 0; display: grid; }
+.freeitem .t strong { font-weight: 600; overflow-wrap: anywhere; }
+.freeitem .t span, .freeitem .t a { color: var(--muted); font-size: 12px; }
+.freeitem .t a { color: var(--lime); }
+.freeitem button { min-height: 34px; padding: 0 12px; font-size: 12px; white-space: nowrap; }
+.freeitem button[aria-pressed="true"] { background: var(--lime); color: var(--on-lime); border-color: var(--lime); }
+.loopitem a.note { flex-basis: 100%; color: var(--lime); }
 @media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
 </style>
 </head>
@@ -328,6 +343,21 @@ ul.how b { color: var(--ink); font-weight: 600; }
     <section class="mixes" aria-label="Mis mezclas">
       <h2>Mis mezclas</h2>
       <div id="mixListMesa" class="mixlist"></div>
+    </section>
+    <section class="free" aria-labelledby="freeTitle">
+      <div class="free-head">
+        <h2 id="freeTitle">Música libre</h2>
+        <span class="note">Sonidos y canciones con licencia libre (dominio público o Creative Commons que permite uso comercial y remezcla), de Freesound, Jamendo y Wikimedia vía Openverse.</span>
+      </div>
+      <form id="freeForm" class="row" autocomplete="off">
+        <input id="freeQ" type="search" placeholder="Busca: drum loop, cumbia, guitarra, synth…" aria-label="Buscar música libre">
+        <div class="seg" role="group" aria-label="Tipo">
+          <button type="button" id="freeLoops" aria-pressed="true">Loops</button>
+          <button type="button" id="freeSongs" aria-pressed="false">Canciones</button>
+        </div>
+        <button class="primary" type="submit">Buscar</button>
+      </form>
+      <div id="freeList" class="freelist"></div>
     </section>
     <div id="transportSlot"></div>
     <div id="desk" class="desk" aria-label="Canales"></div>
@@ -824,26 +854,29 @@ $('bpm').addEventListener('input', (e) => { fixedBpm = Number(e.target.value); f
 
 // ---- Your loops ----
 let loopCount = 0;
-async function addLoopFile(file) {
-  if (!file) return;
+async function addLoopFile(file, meta = {}) {
+  if (!file) return false;
   try {
-    if (!ctx) return;
+    if (!ctx) return false;
     const buf = await ctx.decodeAudioData(await file.arrayBuffer());
     const ch = buf.getChannelData(0);
     const data = new Float32Array(ch.length);
     if (buf.numberOfChannels > 1) { const r = buf.getChannelData(1); for (let i = 0; i < ch.length; i++) data[i] = (ch[i] + r[i]) / 2; } else data.set(ch);
     const seconds = data.length / ctx.sampleRate;
     // A first guess at the length in beats: the power of two closest to 120 BPM.
-    const guess = Math.max(1, 2 ** Math.round(Math.log2((seconds * 120) / 60)));
+    const guess = meta.bpm ? Math.max(1, Math.round((seconds * meta.bpm) / 60)) : Math.max(1, 2 ** Math.round(Math.log2((seconds * 120) / 60)));
     const id = 'loop-' + ++loopCount;
-    const loop = { id, name: file.name.replace(/\.[^.]+$/, '').slice(0, 28) || 'Mi loop', data, beats: guess, seconds };
+    const loop = { id, name: (meta.name || file.name.replace(/\.[^.]+$/, '')).slice(0, 28) || 'Mi loop', data, beats: guess, seconds, credit: meta.credit || null };
     loops.push(loop);
     settings[id] = { in: [MIN, MIN], out: null, floor: 0, gain: 0.3 };
     DEFAULTS[id] = undefined;
     if (engine) engine.addLoop(loop);
     renderLoops(); layout(); select(id); live();
+    if (!$('pageMesa').hidden) buildDesk();
+    return true;
   } catch {
     $('loopList').insertAdjacentHTML('afterbegin', '<p class="note">No se pudo leer ese archivo. Prueba con un WAV o MP3.</p>');
+    return false;
   }
 }
 function renderLoops() {
@@ -853,6 +886,7 @@ function renderLoops() {
     const nat = Math.round((l.beats * 60) / l.seconds);
     div.innerHTML = `<strong></strong><label>Beats <input type="number" min="1" max="128" step="1" id="beats-${l.id}"></label><span class="note">≈ ${nat} BPM original</span><button>Quitar</button>`;
     div.querySelector('strong').textContent = l.name;
+    if (l.credit) { const c = document.createElement('a'); c.className = 'note'; c.href = l.credit.link; c.target = '_blank'; c.rel = 'noopener'; c.textContent = l.credit.text; div.appendChild(c); }
     const inp = div.querySelector('input'); inp.value = l.beats;
     inp.addEventListener('change', () => { l.beats = Math.min(128, Math.max(1, Math.round(Number(inp.value)) || l.beats)); renderLoops(); });
     div.querySelector('button').addEventListener('click', () => {
@@ -1392,6 +1426,73 @@ $('deskReset').addEventListener('click', () => {
   deskMaster = { volume: 0.9, time: 0.35, repeats: 0.35 };
   soloed.clear(); applyEchoMaster(); saveDesk(); live(); buildDesk();
 });
+
+// ---- Música libre: search free-licensed audio (Openverse: Freesound, Jamendo,
+// Wikimedia), listen, and add it to the mix as a new channel. Only licences that
+// allow commercial use and remixing: CC0, CC BY, CC BY-SA. ----
+const LIC = { cc0: 'Dominio público (CC0)', pdm: 'Dominio público', by: 'CC BY: menciona al autor', 'by-sa': 'CC BY-SA: menciona al autor y comparte igual' };
+let freeMode = 'loops';
+function setFreeMode(m) {
+  freeMode = m;
+  $('freeLoops').setAttribute('aria-pressed', String(m === 'loops'));
+  $('freeSongs').setAttribute('aria-pressed', String(m === 'songs'));
+  if ($('freeQ').value.trim()) searchFree();
+}
+$('freeLoops').addEventListener('click', () => setFreeMode('loops'));
+$('freeSongs').addEventListener('click', () => setFreeMode('songs'));
+async function searchFree() {
+  const q = $('freeQ').value.trim(); if (!q) return;
+  const list = $('freeList'); list.innerHTML = '<p class="note">Buscando…</p>';
+  const url = 'https://api.openverse.org/v1/audio/?page_size=12&license=cc0,pdm,by,by-sa&q=' + encodeURIComponent(q) +
+    (freeMode === 'loops' ? '&length=shortest,short' : '&length=medium,long&category=music');
+  let d;
+  try { const r = await fetch(url, { signal: AbortSignal.timeout(10000) }); d = await r.json(); } catch { d = null; }
+  if (!d) { list.innerHTML = '<p class="note">No pude conectar con la biblioteca de música libre. Si estás en la vista de Claude, ábrelo en tu página pública: aquí se bloquean las conexiones externas.</p>'; return; }
+  const res = (d.results || []).filter((x) => x.url && LIC[x.license]);
+  if (!res.length) { list.innerHTML = '<p class="note">No encontré nada con licencia libre para «' + esc(q) + '». Prueba en inglés (drum loop, guitar, bass, piano…).</p>'; return; }
+  list.innerHTML = '';
+  for (const x of res) {
+    const row = document.createElement('div'); row.className = 'freeitem';
+    const secs = x.duration ? Math.round(x.duration / 1000) : 0;
+    const len = secs ? (secs >= 60 ? Math.floor(secs / 60) + ':' + String(secs % 60).padStart(2, '0') : secs + ' s') : '';
+    row.innerHTML = '<div class="t"><strong></strong><span></span><a target="_blank" rel="noopener"></a></div>';
+    row.querySelector('strong').textContent = x.title || 'Sin título';
+    row.querySelector('span').textContent = [x.creator, x.source, len].filter(Boolean).join(' · ');
+    const a = row.querySelector('a'); a.href = x.foreign_landing_url || x.url; a.textContent = LIC[x.license] + ' ↗';
+    const play = document.createElement('button'); play.type = 'button'; play.textContent = '▶ Escuchar'; play.setAttribute('aria-pressed', 'false');
+    play.addEventListener('click', () => {
+      if (previewBtn === play) { stopPreview(); play.textContent = '▶ Escuchar'; return; }
+      if (previewBtn) previewBtn.textContent = previewBtn.textContent.replace('■ Parar', '▶ Escuchar');
+      stopPreview(); if (playing) stop();
+      preview.src = x.url; preview.play().catch(() => {});
+      previewBtn = play; play.setAttribute('aria-pressed', 'true'); play.textContent = '■ Parar';
+    });
+    row.appendChild(play);
+    if (secs && secs <= 90) {
+      const add = document.createElement('button'); add.type = 'button'; add.className = 'primary'; add.textContent = '+ Agregar a la mezcla';
+      add.addEventListener('click', async () => {
+        add.disabled = true; add.textContent = 'Agregando…';
+        let ok = false;
+        try {
+          const r = await fetch(x.url); if (!r.ok) throw new Error();
+          const blob = await r.blob();
+          const m = String(x.title || '').match(/(\d{2,3})\s*bpm/i);
+          ok = await addLoopFile(new File([blob], (x.title || 'loop') + '.mp3'), {
+            name: x.title, bpm: m ? Number(m[1]) : null,
+            credit: { text: '«' + (x.title || '') + '» de ' + (x.creator || 'autor desconocido') + ' · ' + LIC[x.license], link: x.foreign_landing_url || x.url },
+          });
+        } catch {}
+        add.textContent = ok ? '✓ Agregado' : 'No se pudo agregar';
+        if (!ok) add.disabled = false;
+      });
+      row.appendChild(add);
+    } else {
+      const n = document.createElement('span'); n.className = 'note'; n.textContent = 'Solo para escuchar (muy larga para un loop)'; row.appendChild(n);
+    }
+    list.appendChild(row);
+  }
+}
+$('freeForm').addEventListener('submit', (e) => { e.preventDefault(); searchFree(); });
 
 // ---- Sub-pages: #pista and #mesa. The transport (Play, BPM) goes with the one shown. ----
 // Tabs work by click (not only by the #hash), so they also work inside previews
