@@ -137,9 +137,10 @@
     return { ...r, genre: plan.style, label: String(plan.style || 'Mezcla'), summary: String(plan.summary || ''), known: true };
   }
 
-  // Most chosen instruments are fully in by the target BPM, entering one after
-  // another on the way up; the last ones join above it, so running faster still
-  // adds layers. Everything not chosen stays quiet.
+  // The chosen instruments unlock one by one as the BPM goes up: the first one
+  // plays from the start, the others enter at evenly spaced steps from well
+  // below the target BPM to a little above it, so running faster keeps adding
+  // layers. Everything not chosen stays quiet.
   function build(o, layers, seed) {
     const rand = rng(seed.trim() || 'mezcla');
     let bpm = o.bpm + (o.jitterBpm ? Math.round((rand() - 0.5) * 6) : 0);
@@ -152,14 +153,12 @@
       if (spare.length) chosen.push(spare[Math.floor(rand() * spare.length)]);
     }
     chosen.sort((a, b) => byId[a].in[0] - byId[b].in[0] || byId[a].in[1] - byId[b].in[1]);
-    const n = chosen.length, core = Math.max(1, Math.ceil(n * 0.8));
+    const n = chosen.length;
+    const lo = clamp(Math.max(MIN + 10, bpm - 50)), hi = clamp(Math.min(MAX - 4, bpm + 30));
     const mix = {};
     chosen.forEach((id, i) => {
       const l = byId[id];
-      let in1, in0;
-      if (i < core) { in1 = clamp(bpm - 36 * (1 - i / Math.max(1, core - 1))); in0 = clamp(in1 - 16); }
-      else { in1 = clamp(bpm + 10 + 12 * (i - core)); in0 = clamp(in1 - 14); }
-      if (l.in[0] === MIN && l.in[1] === MIN && i === 0) { in0 = MIN; in1 = MIN; }
+      let in1 = i === 0 ? MIN : clamp(lo + ((hi - lo) * i) / Math.max(1, n - 1)), in0 = i === 0 ? MIN : clamp(in1 - 6);
       let out = null;
       if (l.out) { const o0 = clamp(Math.max(in1, bpm + 24 + Math.round(rand() * 10))); out = [o0, clamp(o0 + 24)]; }
       const w = (o.weights[id] || 0.8) * (o.boost[id] || 1) * (CALM.has(id) ? o.calm : o.drums) * (0.92 + rand() * 0.16);

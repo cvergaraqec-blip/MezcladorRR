@@ -264,6 +264,9 @@ ul.how b { color: var(--ink); font-weight: 600; }
 .freeitem .added { color: var(--lime); font-size: 12px; }
 .cred-box { margin: 0; padding: 10px 12px; border-radius: 10px; background: #141a0f; border: 1px solid var(--line); font-size: 13px; color: var(--ink); overflow-wrap: anywhere; }
 .src-guide a { color: var(--lime); }
+.adv-top { justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 6px 14px; }
+.adv-top .note { margin: 0; flex: 1 1 320px; }
+.chk { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; color: var(--muted); white-space: nowrap; }
 @media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
 </style>
 </head>
@@ -314,7 +317,8 @@ ul.how b { color: var(--ink); font-weight: 600; }
   <details id="adv" class="adv">
   <summary><span>Editor avanzado</span><small>Instrumentos por BPM, ajustes finos, tus loops y archivos</small></summary>
   <div class="adv-body">
-  <p class="note">Cada fila es un instrumento. La parte verde es el rango de BPM en el que suena: arrastra sus bordes para que entre antes o después.</p>
+  <div class="row adv-top"><p class="note" id="advNote">Cada fila es un instrumento. La parte verde es el rango de BPM en el que suena: arrastra sus bordes para que entre antes o después.</p>
+  <label class="chk"><input type="checkbox" id="showAll"> Ver todo el kit</label></div>
   <div class="map">
     <canvas id="grid" tabindex="0" aria-label="Mapa de instrumentos por BPM. Usa los campos de abajo para cambiar los valores con el teclado."></canvas>
   </div>
@@ -755,20 +759,32 @@ function frame() {
 const canvas = $('grid'), g2 = canvas.getContext('2d');
 const L = { label: 200, right: 18, top: 14, row: 28, gap: 12, axis: 34 };
 let rows = []; // {id, y, group}
+// The instruments of the mix that is open (null: the whole kit). The editor and
+// the Mesa show only these, unless "Ver todo el kit" is on.
+let focus = null, showAll = false;
+const inFocus = (id) => showAll || !focus || !focus.length || focus.includes(id);
 function layout() {
   rows = []; let y = L.top;
   for (const [name, ids] of GROUPS) {
-    const list = name === 'TUS LOOPS' ? loops.map((l) => l.id) : ids.filter((id) => settings[id]);
+    const list = name === 'TUS LOOPS' ? loops.map((l) => l.id) : ids.filter((id) => settings[id] && inFocus(id));
     if (!list.length) continue;
     list.forEach((id, i) => { rows.push({ id, y, group: i === 0 ? name : '' }); y += L.row; });
     y += L.gap;
   }
+  queueMicrotask(updateAdv);
   const w = Math.max(720, canvas.parentElement.clientWidth);
   const h = y - L.gap + L.axis + 6;
   const dpr = window.devicePixelRatio || 1;
   canvas.width = w * dpr; canvas.height = h * dpr; canvas.style.width = w + 'px'; canvas.style.height = h + 'px';
   g2.setTransform(dpr, 0, 0, dpr, 0, 0);
   L.w = w; L.h = h; L.plotW = w - L.label - L.right; L.axisY = y - L.gap + 8;
+}
+function updateAdv() {
+  const n = rows.filter((r) => !r.id.startsWith('loop-')).length;
+  if (rows.length && !rows.some((r) => r.id === selected) && typeof fill === 'function') { selected = rows[0].id; try { fill(); } catch {} }
+  $('advNote').textContent = focus && focus.length && !showAll
+    ? 'Aquí están los ' + n + ' instrumentos de tu mezcla. Se desbloquean uno a uno al subir el BPM: los que tienen 🔒 todavía no suenan y muestran el BPM en que entran. Arrastra los bordes de la parte verde para cambiarlo.'
+    : 'Cada fila es un instrumento. La parte verde es el rango de BPM en el que suena: arrastra sus bordes para que entre antes o después.';
 }
 const xOf = (bpm) => L.label + ((bpm - MIN) / (MAX - MIN)) * L.plotW;
 const bpmOf = (x) => Math.round(Math.min(MAX, Math.max(MIN, MIN + ((x - L.label) / L.plotW) * (MAX - MIN))));
@@ -786,8 +802,9 @@ function draw() {
     if (r.group) { g2.fillStyle = muted2; g2.font = '700 10px Inter, sans-serif'; g2.fillText(r.group, 10, r.y + 17); }
     g2.fillStyle = isSel ? '#2c3523' : 'transparent';
     if (isSel) g2.fillRect(64, r.y, L.label - 72, h);
-    g2.fillStyle = muted.has(r.id) ? muted2 : ink; g2.font = (isSel ? '600 ' : '400 ') + '13px Inter, sans-serif';
-    g2.fillText(nameOf(r.id), 72, r.y + 17, L.label - 110);
+    const locked = s.gain > 0 && now < s.in[0];
+    g2.fillStyle = muted.has(r.id) || locked ? muted2 : ink; g2.font = (isSel ? '600 ' : '400 ') + '13px Inter, sans-serif';
+    g2.fillText((locked ? '🔒 ' : '') + nameOf(r.id), 72, r.y + 17, L.label - 110);
     // Mute toggle
     g2.strokeStyle = muted.has(r.id) ? '#f2c46d' : '#48513b'; g2.lineWidth = 1;
     g2.strokeRect(L.label - 32.5, r.y + 3.5, 22, h - 7);
@@ -809,6 +826,7 @@ function draw() {
       g2.fillStyle = isSel ? ink : 'rgba(243,244,237,0.75)';
       g2.fillRect(x - 1.5, r.y + 2, 3, h - 4);
     });
+    if (locked && s.in[0] > MIN) { g2.font = '600 11px Inter, sans-serif'; g2.fillStyle = ink; g2.fillText('🔒 ' + s.in[0], Math.max(L.label + 4, xOf(s.in[0]) - 46), r.y + 16); }
   }
   // Axis
   g2.fillStyle = muted2; g2.font = '500 11px "JetBrains Mono", monospace';
@@ -934,6 +952,7 @@ function setMode(m) {
 $('modeFixed').addEventListener('click', () => setMode('fixed'));
 $('modeJourney').addEventListener('click', () => setMode('journey'));
 $('bpm').addEventListener('input', (e) => { fixedBpm = Number(e.target.value); frame(); saveOpenMix(); });
+$('showAll').addEventListener('change', (e) => { showAll = e.target.checked; layout(); draw(); if (!$('pageMesa').hidden) buildDesk(); });
 
 // ---- Your loops ----
 let loopCount = 0;
@@ -1311,7 +1330,7 @@ function clearLoops() {
   if (!settings[selected]) selected = SONG.layers[0].id;
 }
 function addMix(name, style, bpm) {
-  const m = { id: 'm' + Date.now(), name, style, bpm, mix: changes(), desk: deskWithoutLoops(), loops: loopsSnapshot(), master: { ...deskMaster }, created: Date.now() };
+  const m = { id: 'm' + Date.now(), name, style, bpm, instruments: focus, mix: changes(), desk: deskWithoutLoops(), loops: loopsSnapshot(), master: { ...deskMaster }, created: Date.now() };
   mixes.unshift(m); mixes = mixes.slice(0, 40);
   openMix = m.id; storeMixes(); renderMixes();
 }
@@ -1329,6 +1348,7 @@ async function openMixById(id, then) {
   openMix = id; hideAb();
   loadingMix = true;
   applyMix(cleanMix(m.mix || {}));
+  focus = m.instruments || Object.keys(m.mix || {}).filter((id) => (m.mix[id].gain ?? 1) > 0 && m.mix[id].in);
   clearLoops();
   setDeskAll(m.desk, m.master);
   let missing = 0;
@@ -1373,9 +1393,9 @@ function renderMixes() {
 
 // ---- Antes / después: right after creating, switch between the old and new mix ----
 let abState = null; // {before: {mix, desk, bpm}, after: {...}}
-function snapshot() { return { mix: changes(), desk: JSON.parse(JSON.stringify(desk)), master: { ...deskMaster }, bpm: fixedBpm }; }
+function snapshot() { return { mix: changes(), desk: JSON.parse(JSON.stringify(desk)), master: { ...deskMaster }, bpm: fixedBpm, focus }; }
 function applySnap(sn) {
-  applyMix(cleanMix(sn.mix));
+  applyMix(cleanMix(sn.mix)); focus = sn.focus || null; layout(); if (!$('pageMesa').hidden) buildDesk();
   const keep = openMix; openMix = null; setDeskAll(sn.desk, sn.master); openMix = keep;
   fixedBpm = sn.bpm; $('bpm').value = sn.bpm;
   live(); fill(); draw(); frame(); refreshDesk();
@@ -1418,6 +1438,7 @@ async function createMusic(text) {
     note = '(La IA no estaba disponible, así que la hice con reglas.) ';
   }
   applyMix(cleanMix(r.mix));
+  focus = [...r.instruments]; layout();
   const genreKey = (Generador.GENRES[r.genre] ? r.genre : Generador.read(String(r.genre || '') + ' ' + words).genre) || 'pop';
   const who = (artistPick && plainName(text) === artistFor) ? artistPick.name : words;
   const snd = soundProfile(genreKey, fold(who) || 'mezcla', r.instruments, r.bpm);
@@ -1432,6 +1453,7 @@ async function createMusic(text) {
   $('ab').hidden = false; $('abBefore').setAttribute('aria-pressed', 'false'); $('abAfter').setAttribute('aria-pressed', 'true');
   flashMap();
   $('aiResult').innerHTML = esc(source) + '<b>' + esc(r.label) + ' · ' + r.bpm + ' BPM</b> con ' + esc(r.instruments.map(nameOf).join(', ')) + '. ' +
+    'Se van sumando al subir el BPM: ' + esc(r.instruments.map((id) => nameOf(id) + (settings[id].in[0] > MIN ? ' ' + settings[id].in[0] : '')).join(' → ')) + '. ' +
     esc(note) + (keyNote ? 'Tono ' + (keyNote > 0 ? '+' : '') + keyNote + '. ' : '') + 'Quedó en <b>Mis mezclas</b>.';
   $('aiGo').disabled = false; $('aiGo').textContent = 'Crear música';
   if (!playing && engine) await start();
@@ -1613,7 +1635,7 @@ async function incAdd(x, btn, row) {
     // A new mix takes the track's own tempo, so it plays at its natural speed.
     if (fresh && x.b) { fixedBpm = Math.min(MAX, Math.max(MIN, x.b)); $('bpm').value = fixedBpm; if (mode !== 'fixed') setMode('fixed'); frame(); }
     ok = await addLoopFile(new File([blob], x.f), { name: x.t, bpm: x.b || null, src: incSrc(x), credit: incCredit(x) });
-    if (ok && fresh) addMix(x.t, 'Incompetech', fixedBpm);
+    if (ok && fresh) { focus = null; addMix(x.t, 'Incompetech', fixedBpm); }
   } catch {}
   if (!ok) { btn.disabled = false; btn.textContent = 'No se pudo traer. Reintentar'; return; }
   btn.textContent = '✓ En la mezcla';
