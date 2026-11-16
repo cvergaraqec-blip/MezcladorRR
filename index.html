@@ -124,9 +124,6 @@ ul.how b { color: var(--ink); font-weight: 600; }
 .ai .examples button { min-height: 30px; padding: 0 10px; font-weight: 500; font-size: 12px; color: var(--muted); background: transparent; border-radius: 99px; }
 .ai .result { margin: 0; font-size: 13px; color: var(--muted); }
 .ai .result b { color: var(--lime); font-weight: 600; }
-.aiset summary { font-size: 12.5px; color: var(--muted); font-weight: 600; }
-.aiset-body { display: grid; gap: 10px; padding-top: 10px; }
-.aiset input[type=password] { font: 500 14px var(--font-num); color: var(--ink); background: #141a0f; border: 1px solid #4b573c; border-radius: 9px; padding: 8px 12px; min-height: 40px; width: 100%; box-sizing: border-box; }
 @media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
 </style>
 </head>
@@ -139,33 +136,16 @@ ul.how b { color: var(--ink); font-weight: 600; }
     <form id="ai" class="ai" autocomplete="off">
       <label for="aiText">¿Qué quiere escuchar el oyente?</label>
       <div class="row">
-        <input id="aiText" type="text" maxlength="300" placeholder="Una canción, un artista, un género o un link de YouTube">
+        <input id="aiText" type="text" maxlength="300" placeholder="Un artista (p. ej. Gepe), una canción, un género o un link de YouTube">
         <button id="aiGo" class="primary" type="submit" disabled>Crear música</button>
       </div>
       <div class="examples" aria-label="Ejemplos">
+        <button type="button">Gepe</button>
         <button type="button">Me gusta Bad Bunny</button>
         <button type="button">Techno oscuro y rápido</button>
         <button type="button">Algo tranquilo para relajarme</button>
         <button type="button">Rock para correr</button>
       </div>
-      <details class="aiset">
-        <summary>Ajustes de la IA</summary>
-        <div class="aiset-body">
-          <label>Modelo
-            <select id="aiModel">
-              <option value="claude-opus-5-5">Claude Opus 5.5: entiende mejor los gustos (≈1–2 centavos por mezcla)</option>
-              <option value="claude-haiku-5-5">Claude Haiku 5.5: más barato (≈0,1 centavos por mezcla)</option>
-              <option value="reglas">Sin IA: solo reglas (gratis)</option>
-            </select>
-          </label>
-          <label>Tu clave de Anthropic (opcional)
-            <input id="aiKey" type="password" autocomplete="off" spellcheck="false" placeholder="sk-ant-… · si la dejas vacía se usa la del servidor">
-          </label>
-          <p class="note">Los ajustes se guardan solo en este navegador. La clave viaja únicamente a la función del Mezclador en Supabase, que la usa para llamar a Anthropic y no la guarda. Para que todos los oyentes usen la IA sin poner clave, guárdala en Supabase como secreto <code>ANTHROPIC_API_KEY</code>.</p>
-          <p id="aiSetNote" class="note"></p>
-          <p id="aiHere" class="note" hidden><b>En esta vista dentro de Claude</b>, la IA usa tu propia cuenta de Claude (te pide permiso la primera vez) y no necesita clave ni modelo.</p>
-        </div>
-      </details>
       <p id="aiResult" class="result" role="status">Una IA (Claude) crea una mezcla original con los sonidos del kit, inspirada en lo que le gusta. No copia ni descarga la canción: de un link de YouTube solo lee el título.</p>
     </form>
   </header>
@@ -789,24 +769,11 @@ const esc = (t) => String(t).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&l
 // keeps the Anthropic key off this page. If it can't answer, the rules in
 // generador.js make the mix right here.
 const AI_URL = 'https://kjakeluquwhmdvpesroj.supabase.co/functions/v1/crear-musica';
-const AI_STORE = 'mezcladorrr.ia';
-function readAiSettings() { try { return JSON.parse(localStorage.getItem(AI_STORE) || '{}'); } catch { return {}; } }
-function writeAiSettings() {
-  const s = { model: $('aiModel').value, key: $('aiKey').value.trim() };
-  try { localStorage.setItem(AI_STORE, JSON.stringify(s)); $('aiSetNote').textContent = 'Guardado en este navegador.'; }
-  catch { $('aiSetNote').textContent = 'Este navegador no deja guardar los ajustes; valen mientras la página esté abierta.'; }
-}
-{ const s = readAiSettings(); if (s.model) $('aiModel').value = s.model; if (s.key) $('aiKey').value = s.key; }
-$('aiModel').addEventListener('change', writeAiSettings);
-claudeSample().then((sm) => { if (sm) $('aiHere').hidden = false; });
-$('aiKey').addEventListener('change', writeAiSettings);
 async function askAi(text, youtubeId) {
   const ctl = new AbortController(); const t = setTimeout(() => ctl.abort(), 45000);
   const headers = { 'Content-Type': 'application/json' };
-  const key = $('aiKey').value.trim();
-  if (key) headers['x-anthropic-key'] = key;
   try {
-    const r = await fetch(AI_URL, { method: 'POST', headers, body: JSON.stringify({ text, youtubeId, model: $('aiModel').value }), signal: ctl.signal });
+    const r = await fetch(AI_URL, { method: 'POST', headers, body: JSON.stringify({ text, youtubeId }), signal: ctl.signal });
     const d = await r.json();
     if (!r.ok || !d.plan) throw new Error(d.error || 'sin respuesta');
     return d;
@@ -835,6 +802,7 @@ async function askClaudeHere(text, youtubeId) {
   const prompt = `Eres el productor musical de RadioRun, una app de música adaptativa para correr.
 Diseña una mezcla ORIGINAL con el kit de instrumentos de la app que evoque lo que pide el oyente: tempo, energía e instrumentación.
 No reproduzcas ni cites letras ni melodías; solo inspírate en el género y la energía.
+Si el oyente solo escribe un nombre (por ejemplo un artista, aunque venga en minúsculas o con faltas, como "gepe"), reconoce de quién se trata y usa el estilo, el tempo y la instrumentación típicos de ese artista.
 Instrumentos disponibles (id: descripción):
 ${ids.map((id) => '- ' + id + ': ' + (LAYER_HINTS[id] || nameOf(id))).join('\n')}
 
@@ -867,7 +835,6 @@ async function createMusic(text) {
   const words = text.replace(/https?:\/\/\S+/g, ' ');
   let r, source = '', note = '';
   try {
-    if ($('aiModel').value === 'reglas') throw new Error('reglas');
     const d = (await claudeSample()) ? await askClaudeHere(text, yt) : await askAi(text, yt);
     r = Generador.fromPlan(d.plan, SONG.layers, text);
     if (d.video) source = 'Inspirada en «' + d.video + '». ';
@@ -878,7 +845,8 @@ async function createMusic(text) {
     if (video) source = 'Inspirada en «' + video + '». ';
     else if (yt) source = 'No pude leer el título del video; escribe también el nombre de la canción o el género. ';
     r = Generador.create(words, SONG.layers, video);
-    note = e.message === 'reglas' ? '' : '(La IA no respondió' + (e.message && e.message !== 'sin respuesta' ? ': ' + e.message : '') + '. La hice con reglas.) ';
+    console.warn('Crear música: la IA no respondió', e);
+    note = '(La IA no estaba disponible, así que la hice con reglas.) ';
   }
   applyMix(cleanMix(r.mix));
   fixedBpm = r.bpm; $('bpm').value = r.bpm;

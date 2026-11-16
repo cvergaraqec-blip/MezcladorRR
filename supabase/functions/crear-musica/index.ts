@@ -65,6 +65,7 @@ Tu trabajo es diseñar una mezcla ORIGINAL con el kit de instrumentos de la app 
 No reproduzcas ni cites letras, melodías ni nombres de pistas protegidas; solo inspírate en el género y la energía.
 Instrumentos disponibles (id: descripción):
 ${Object.entries(LAYERS).map(([id, d]) => `- ${id}: ${d}`).join("\n")}
+Si el oyente solo escribe un nombre (por ejemplo un artista, aunque venga en minúsculas o con faltas, como "gepe"), reconoce de quién se trata y usa el estilo, el tempo y la instrumentación típicos de ese artista.
 Elige el BPM típico del estilo (o el que pida el oyente). Responde solo con el JSON pedido.`;
 
 function cors(origin: string | null) {
@@ -72,7 +73,7 @@ function cors(origin: string | null) {
   return {
     "Access-Control-Allow-Origin": ok,
     "Access-Control-Allow-Methods": "POST, OPTIONS",
-    "Access-Control-Allow-Headers": "content-type, authorization, apikey, x-client-info, x-anthropic-key",
+    "Access-Control-Allow-Headers": "content-type, authorization, apikey, x-client-info",
     "Vary": "Origin",
   };
 }
@@ -115,10 +116,7 @@ Deno.serve(async (req) => {
   if (!text.trim() && !youtubeId) return json({ error: "Falta el texto" }, 400, headers);
   const video = youtubeId ? await youtubeTitle(youtubeId) : "";
 
-  // The visitor's own key (from the page's "Ajustes de la IA") if given, else
-  // the ANTHROPIC_API_KEY secret. Never stored or logged.
-  const own = (req.headers.get("x-anthropic-key") || "").trim();
-  const apiKey = own || Deno.env.get("ANTHROPIC_API_KEY") || "";
+  const apiKey = Deno.env.get("ANTHROPIC_API_KEY") || "";
   if (!apiKey) return json({ error: "falta la clave de Anthropic" }, 503, headers);
   const client = new Anthropic({ apiKey });
   try {
