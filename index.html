@@ -225,6 +225,7 @@ ul.how b { color: var(--ink); font-weight: 600; }
 .src-hero h2 { font-size: 20px; }
 .src-hero p { margin: 0; color: var(--muted); max-width: 75ch; }
 .src-filters { display: flex; flex-wrap: wrap; gap: 6px; }
+.src-filters[hidden] { display: none; }
 .src-filters button { min-height: 34px; border-radius: 99px; font-size: 13px; }
 .src-filters button[aria-pressed="true"] { background: var(--lime); color: var(--on-lime); border-color: var(--lime); }
 .src-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 12px; }
@@ -267,6 +268,12 @@ ul.how b { color: var(--ink); font-weight: 600; }
 .adv-top { justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 6px 14px; }
 .adv-top .note { margin: 0; flex: 1 1 320px; }
 .chk { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; color: var(--muted); white-space: nowrap; }
+.src-pick { display: flex; flex-wrap: wrap; gap: 8px; }
+.src-pick button { display: flex; align-items: center; gap: 10px; text-align: left; padding: 8px 14px 8px 8px; border-radius: 12px; min-height: 56px; }
+.src-pick button .src-ico { width: 38px; height: 38px; font-size: 16px; color: #1a1426; }
+.src-pick button span:last-child { display: grid; }
+.src-pick button small { font-weight: 400; font-size: 12px; color: var(--muted); }
+.src-pick button[aria-pressed="true"] { border-color: var(--lime); background: #26301b; }
 @media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
 </style>
 </head>
@@ -278,7 +285,7 @@ ul.how b { color: var(--ink); font-weight: 600; }
     <nav class="tabs" aria-label="Secciones">
       <a href="#pista" id="tabPista" aria-current="page">Pista</a>
       <a href="#mesa" id="tabMesa">Mesa mezcladora</a>
-      <a href="#fuentes" id="tabFuentes">Incompetech</a>
+      <a href="#fuentes" id="tabFuentes">Música libre</a>
     </nav>
   </header>
   <div id="pagePista" class="page">
@@ -395,8 +402,8 @@ ul.how b { color: var(--ink); font-weight: 600; }
     </section>
     <section class="free" aria-labelledby="freeTitle">
       <div class="free-head">
-        <h2 id="freeTitle">Música de Incompetech</h2>
-        <span class="note">Temas de Kevin MacLeod con licencia CC BY 4.0: puedes mezclarlos y remezclarlos, siempre nombrando al autor. El crédito queda guardado con cada tema.</span>
+        <h2 id="freeTitle">Música libre</h2>
+        <span class="note">Temas de Incompetech (Kevin MacLeod) y de Jamendo y otras fuentes vía Openverse, con licencias que permiten mezclar y uso comercial nombrando al autor. El crédito queda guardado con cada tema.</span>
       </div>
       <form id="freeForm" class="row" autocomplete="off">
         <input id="freeQ" type="search" placeholder="Busca por nombre, ánimo o instrumento: piano, rock, alegre…" aria-label="Buscar en Incompetech">
@@ -416,11 +423,14 @@ ul.how b { color: var(--ink); font-weight: 600; }
 
   <div id="pageFuentes" class="page" hidden>
     <section class="src-hero inc-hero">
-      <div class="src-top"><div class="src-ico" style="background:#c79bff">I</div><div><h2>Incompetech</h2><small>Kevin MacLeod · incompetech.com</small></div></div>
-      <p>Más de 1.400 temas para usar sin problemas de derechos: los escuchas aquí mismo y los llevas a tu mezcla con un clic. Solo hay que nombrar al autor, y la app guarda ese crédito por ti.</p>
+      <h2>Música libre para tus mezclas</h2>
+      <p>Canciones que puedes usar sin problemas de derechos: las escuchas aquí mismo y las llevas a tu mezcla con un clic. Solo hay que nombrar al autor, y la app guarda ese crédito por ti.</p>
+      <div class="src-pick" role="group" aria-label="Fuente">
+        <button type="button" data-src="inc" aria-pressed="true"><span class="src-ico" style="background:#c79bff">I</span><span><b>Incompetech</b><small>Kevin MacLeod · 1.400 temas · CC BY 4.0</small></span></button>
+        <button type="button" data-src="ov" aria-pressed="false"><span class="src-ico" style="background:#7ed6a5">J</span><span><b>Jamendo y más</b><small>Artistas independientes vía Openverse · CC BY, BY-SA y CC0</small></span></button>
+      </div>
       <dl class="inc-facts">
-        <div><dt>Licencia</dt><dd>CC BY 4.0</dd></div>
-        <div><dt>Nombrar al autor</dt><dd>Sí, siempre</dd></div>
+        <div><dt>Nombrar al autor</dt><dd>Sí (salvo CC0)</dd></div>
         <div><dt>Uso comercial</dt><dd>Sí</dd></div>
         <div><dt>Remezclar</dt><dd>Sí</dd></div>
       </dl>
@@ -431,7 +441,7 @@ ul.how b { color: var(--ink); font-weight: 600; }
         <span class="note" id="incCount">Cargando el catálogo…</span>
       </div>
       <form id="incForm" class="row" autocomplete="off">
-        <input id="incQ" type="search" placeholder="Busca por nombre o instrumento: piano, guitar, drums…" aria-label="Buscar en Incompetech">
+        <input id="incQ" type="search" placeholder="Busca por nombre o instrumento: piano, guitar, drums…" aria-label="Buscar música libre">
         <button class="primary" type="submit">Buscar</button>
       </form>
       <div class="src-filters" id="incFeels" role="group" aria-label="Ánimo"></div>
@@ -446,8 +456,9 @@ ul.how b { color: var(--ink); font-weight: 600; }
     </section>
     <section class="src-guide" aria-labelledby="credTitle">
       <h2 id="credTitle">Cómo dar crédito</h2>
-      <p class="note">Donde publiques algo con estos temas (la descripción de un video, la pantalla de créditos de la app), pon el nombre del tema y esta línea:</p>
+      <p class="note">Donde publiques algo con estos temas (la descripción de un video, la pantalla de créditos de la app), nombra el tema, el autor y la licencia. Para Incompetech:</p>
       <p class="cred-box"><b>«Título del tema» Kevin MacLeod (incompetech.com)</b><br>Licensed under Creative Commons: By Attribution 4.0<br>https://creativecommons.org/licenses/by/4.0/</p>
+      <p class="note">Para Jamendo y las otras fuentes: <b>«Título» de Autor</b>, la licencia (por ejemplo CC BY 3.0) y el enlace al tema. Si es <b>CC BY-SA</b>, lo que publiques con ese tema debe compartirse con la misma licencia.</p>
       <ul class="tips">
         <li>Cada tema que agregas a una mezcla queda con su crédito en <b>Tus loops</b> y en <b>Mis mezclas</b>.</li>
         <li>Si alguna vez no puedes poner el crédito, Incompetech vende una licencia que lo evita. <a href="https://incompetech.com/music/royalty-free/faq.html" target="_blank" rel="noopener">Preguntas frecuentes ↗</a></li>
@@ -1588,7 +1599,7 @@ function incCatalog() {
     .finally(() => { incLoading = null; });
   return incLoading;
 }
-const OFFLINE = '<p class="note">No pude conectar con Incompetech. Si estás en la vista de Claude, ábrelo en tu copia local (localhost:8099): aquí se bloquean las conexiones externas.</p>';
+const OFFLINE = '<p class="note">No pude conectar con la biblioteca de música. Si estás en la vista de Claude, ábrelo en tu copia local (localhost:8099): aquí se bloquean las conexiones externas.</p>';
 function incSearch(q, feel, tempo) {
   const words = fold(q).split(' ').filter(Boolean).map((w) => fold(ES_EN[w] || w));
   for (const [en, es] of Object.entries(FEELS)) { const i = words.indexOf(fold(es)); if (i >= 0) words[i] = fold(en); }
@@ -1603,69 +1614,121 @@ function incSearch(q, feel, tempo) {
   });
 }
 const mmss = (s) => Math.floor(s / 60) + ':' + String(s % 60).padStart(2, '0');
-function incRow(x) {
+// Each track, from either source, as {t, meta, ins, link, linkText, play, src, b, style, credit}.
+function fromInc(x) {
+  const feels = x.feel.split(',').map((s) => FEELS[s.trim()]).filter(Boolean).join(', ');
+  const credit = incCredit(x);
+  return { t: x.t, meta: [feels, x.b ? x.b + ' BPM' : '', x.s ? mmss(x.s) : ''].filter(Boolean).join(' · '), ins: x.ins,
+    link: credit.link, linkText: 'CC BY 4.0 · ver en Incompetech ↗', play: INC_MP3 + encodeURIComponent(x.f), src: incSrc(x), file: x.f, b: x.b, style: 'Incompetech', credit };
+}
+// ---- Openverse (Jamendo, Wikimedia, Freesound…): only licences that allow
+// commercial use and remixing. Its files can be read directly by the page. ----
+const OV_LIC = { cc0: 'CC0 (dominio público)', pdm: 'Dominio público', by: 'CC BY', 'by-sa': 'CC BY-SA' };
+const OV_SRC = { jamendo: 'Jamendo', wikimedia_audio: 'Wikimedia', freesound: 'Freesound', ccmixter: 'ccMixter' };
+function fromOv(x) {
+  const lic = OV_LIC[x.license] + (x.license_version && x.license !== 'pdm' ? ' ' + x.license_version : '');
+  const from = OV_SRC[x.source] || x.source || 'Openverse';
+  const secs = x.duration ? Math.round(x.duration / 1000) : 0;
+  const link = x.foreign_landing_url || x.url;
+  return { t: x.title || 'Sin título', meta: [x.creator, from, (x.genres || []).slice(0, 2).join(', '), secs ? mmss(secs) : ''].filter(Boolean).join(' · '), ins: '',
+    link, linkText: lic + ' · ver en ' + from + ' ↗', play: x.url, src: x.url, file: (x.title || 'tema') + '.mp3', b: null, style: from,
+    credit: { text: '«' + (x.title || '') + '» de ' + (x.creator || 'autor desconocido') + ' (' + from + ') · ' + lic, link } };
+}
+async function ovSearch(q, page = 1, size = 20) {
+  const url = 'https://api.openverse.org/v1/audio/?category=music&license=cc0,pdm,by,by-sa&page_size=' + size + '&page=' + page + '&q=' + encodeURIComponent(q || 'music');
+  try {
+    const r = await fetch(url, { signal: AbortSignal.timeout(12000) }); if (!r.ok) return null;
+    const d = await r.json();
+    return { count: d.result_count || 0, pages: d.page_count || 1, items: (d.results || []).filter((x) => x.url && OV_LIC[x.license]).map(fromOv) };
+  } catch { return null; }
+}
+function trackRow(x) {
   const row = document.createElement('div'); row.className = 'freeitem';
   row.innerHTML = '<div class="t"><strong></strong><span></span><em></em><a target="_blank" rel="noopener"></a></div>';
   row.querySelector('strong').textContent = x.t;
-  const feels = x.feel.split(',').map((s) => FEELS[s.trim()]).filter(Boolean).join(', ');
-  row.querySelector('span').textContent = [feels, x.b ? x.b + ' BPM' : '', x.s ? mmss(x.s) : ''].filter(Boolean).join(' · ');
-  row.querySelector('em').textContent = x.ins;
-  const a = row.querySelector('a'); a.href = incCredit(x).link; a.textContent = 'CC BY 4.0 · ver en Incompetech ↗';
+  row.querySelector('span').textContent = x.meta;
+  if (x.ins) row.querySelector('em').textContent = x.ins; else row.querySelector('em').remove();
+  const a = row.querySelector('a'); a.href = x.link; a.textContent = x.linkText;
   const play = document.createElement('button'); play.type = 'button'; play.textContent = '▶ Escuchar'; play.setAttribute('aria-pressed', 'false');
   play.addEventListener('click', () => {
     if (previewBtn === play) { stopPreview(); play.textContent = '▶ Escuchar'; return; }
     if (previewBtn) previewBtn.textContent = '▶ Escuchar';
     stopPreview(); if (playing) stop();
-    preview.src = INC_MP3 + encodeURIComponent(x.f); preview.play().catch(() => {});
+    preview.src = x.play; preview.play().catch(() => {});
     previewBtn = play; play.setAttribute('aria-pressed', 'true'); play.textContent = '■ Parar';
   });
   const add = document.createElement('button'); add.type = 'button'; add.className = 'primary'; add.textContent = '+ Usar en la mezcla';
-  add.addEventListener('click', () => incAdd(x, add, row));
+  add.addEventListener('click', () => trackAdd(x, add, row));
   row.append(play, add);
   return row;
 }
-async function incAdd(x, btn, row) {
+async function trackAdd(x, btn, row) {
   btn.disabled = true; btn.textContent = 'Trayendo el tema…';
   let ok = false;
   try {
     if (!ctx) await loadKit();
-    const r = await fetch(incSrc(x)); if (!r.ok) throw new Error();
+    const r = await fetch(x.src); if (!r.ok) throw new Error();
     const blob = await r.blob();
     const fresh = !openMix;
-    // A new mix takes the track's own tempo, so it plays at its natural speed.
+    // A new mix takes the track's own tempo (when known), so it plays at its natural speed.
     if (fresh && x.b) { fixedBpm = Math.min(MAX, Math.max(MIN, x.b)); $('bpm').value = fixedBpm; if (mode !== 'fixed') setMode('fixed'); frame(); }
-    ok = await addLoopFile(new File([blob], x.f), { name: x.t, bpm: x.b || null, src: incSrc(x), credit: incCredit(x) });
-    if (ok && fresh) { focus = null; addMix(x.t, 'Incompetech', fixedBpm); }
+    ok = await addLoopFile(new File([blob], x.file), { name: x.t, bpm: x.b || fixedBpm, src: x.src, credit: x.credit });
+    if (ok && fresh) { focus = null; addMix(x.t, x.style, fixedBpm); }
   } catch {}
   if (!ok) { btn.disabled = false; btn.textContent = 'No se pudo traer. Reintentar'; return; }
   btn.textContent = '✓ En la mezcla';
-  if (!row.querySelector('.go-mesa')) {
+  if (!row.querySelector('.go-mesa') && $('pageMesa').hidden) {
     const go = document.createElement('button'); go.type = 'button'; go.className = 'go-mesa'; go.textContent = 'Abrir en la Mesa →';
     go.addEventListener('click', () => { pageNow = 'mesa'; try { history.replaceState(null, '', '#mesa'); } catch {} showPage(); });
-    if ($('pageMesa').hidden) row.appendChild(go);
+    row.appendChild(go);
   }
 }
-function incRender(list, items, limit) {
-  list.innerHTML = '';
-  for (const x of items.slice(0, limit)) list.appendChild(incRow(x));
+function renderTracks(list, items, append = false) {
+  if (!append) list.innerHTML = '';
+  for (const x of items) list.appendChild(trackRow(x));
 }
-// Mesa: a quick search box.
+// Mesa: one search box over both sources.
 async function searchFree() {
   const q = $('freeQ').value.trim(); if (!q) return;
   const list = $('freeList'); list.innerHTML = '<p class="note">Buscando…</p>';
-  if (!(await incCatalog())) { list.innerHTML = OFFLINE; return; }
-  const res = incSearch(q, '', 'all');
-  if (!res.length) { list.innerHTML = '<p class="note">No encontré temas para «' + esc(q) + '». Prueba con un ánimo (alegre, épico, tranquilo) o un instrumento (piano, guitar, drums).</p>'; return; }
-  incRender(list, res, 12);
+  const [cat, ov] = await Promise.all([incCatalog(), ovSearch(englishQuery(q), 1, 8)]);
+  const items = [...(cat ? incSearch(q, '', 'all').slice(0, 8).map(fromInc) : []), ...(ov ? ov.items : [])];
+  if (!cat && !ov) { list.innerHTML = OFFLINE; return; }
+  if (!items.length) { list.innerHTML = '<p class="note">No encontré temas para «' + esc(q) + '». Prueba con un ánimo (alegre, épico, tranquilo) o un instrumento (piano, guitar, drums).</p>'; return; }
+  renderTracks(list, items);
 }
 $('freeForm').addEventListener('submit', (e) => { e.preventDefault(); searchFree(); });
-// Incompetech page: the whole library, with mood and tempo filters.
-function incFilter() {
+// Spanish words to the English that the catalogs use.
+function englishQuery(q) {
+  return fold(q).split(' ').filter(Boolean).map((w) => {
+    const feel = Object.entries(FEELS).find(([, es]) => fold(es) === w);
+    return feel ? feel[0].toLowerCase() : ES_EN[w] || w;
+  }).join(' ');
+}
+// Música libre page: the library, with a source switch, moods and tempo.
+let libSrc = 'inc', ovPage = 1, ovPages = 1, ovSeq = 0;
+async function incFilter() {
+  const q = $('incQ').value.trim();
+  $('incTempo').hidden = libSrc !== 'inc';
+  if (libSrc === 'ov') {
+    const seq = ++ovSeq; ovPage = 1;
+    $('incList').innerHTML = '<p class="note">Buscando en Jamendo y otras fuentes…</p>'; $('incMore').hidden = true;
+    const words = [englishQuery(q), incFeel ? incFeel.toLowerCase() : ''].filter(Boolean).join(' ');
+    const res = await ovSearch(words || 'instrumental');
+    if (seq !== ovSeq) return;
+    if (!res) { $('incCount').textContent = 'Sin conexión'; $('incList').innerHTML = OFFLINE; return; }
+    ovPages = res.pages;
+    $('incCount').textContent = res.count ? res.count.toLocaleString('es') + ' temas con licencia libre' : 'Sin resultados';
+    if (!res.items.length) { $('incList').innerHTML = '<p class="note">Nada con esa búsqueda. Prueba en inglés: guitar, piano, rock, ambient…</p>'; return; }
+    renderTracks($('incList'), res.items);
+    $('incMore').hidden = ovPage >= ovPages;
+    return;
+  }
   if (!incAll) return;
-  incResults = incSearch($('incQ').value.trim(), incFeel, incTempo);
+  incResults = incSearch(q, incFeel, incTempo);
   $('incCount').textContent = incResults.length === incAll.length ? incAll.length + ' temas' : incResults.length + ' de ' + incAll.length + ' temas';
   if (!incResults.length) { $('incList').innerHTML = '<p class="note">Nada con esos filtros. Quita alguno o prueba otra palabra.</p>'; $('incMore').hidden = true; return; }
-  incRender($('incList'), incResults, incShown);
+  renderTracks($('incList'), incResults.slice(0, incShown).map(fromInc));
   $('incMore').hidden = incResults.length <= incShown;
 }
 function incPress(box, attr, val) { for (const b of box.querySelectorAll('button')) b.setAttribute('aria-pressed', String(b.dataset[attr] === val)); }
@@ -1676,10 +1739,24 @@ function incPress(box, attr, val) { for (const b of box.querySelectorAll('button
   incPress(box, 'feel', '');
   box.addEventListener('click', (e) => { const b = e.target.closest('button'); if (!b) return; incFeel = b.dataset.feel; incPress(box, 'feel', incFeel); incShown = 30; incFilter(); });
   $('incTempo').addEventListener('click', (e) => { const b = e.target.closest('button'); if (!b) return; incTempo = b.dataset.t; incPress($('incTempo'), 't', incTempo); incShown = 30; incFilter(); });
+  for (const b of document.querySelectorAll('.src-pick button')) b.addEventListener('click', () => {
+    libSrc = b.dataset.src; incPress(b.parentElement, 'src', libSrc); incShown = 30;
+    if (libSrc === 'inc' && !incAll) incOpen(); else incFilter();
+  });
 })();
 $('incForm').addEventListener('submit', (e) => { e.preventDefault(); incShown = 30; incFilter(); });
-$('incMore').addEventListener('click', () => { incShown += 30; incFilter(); });
+$('incMore').addEventListener('click', async () => {
+  if (libSrc === 'inc') { incShown += 30; incFilter(); return; }
+  const btn = $('incMore'); btn.disabled = true;
+  const words = [englishQuery($('incQ').value.trim()), incFeel ? incFeel.toLowerCase() : ''].filter(Boolean).join(' ');
+  const res = await ovSearch(words || 'instrumental', ovPage + 1);
+  btn.disabled = false;
+  if (!res) return;
+  ovPage++; renderTracks($('incList'), res.items, true);
+  btn.hidden = ovPage >= ovPages;
+});
 async function incOpen() {
+  if (libSrc !== 'inc') return incFilter();
   if (incAll) return;
   $('incList').innerHTML = '<p class="note">Cargando el catálogo de Incompetech…</p>';
   if (!(await incCatalog())) { $('incCount').textContent = 'Sin conexión'; $('incList').innerHTML = OFFLINE; return; }
