@@ -124,6 +124,16 @@ ul.how b { color: var(--ink); font-weight: 600; }
 .ai .examples button { min-height: 30px; padding: 0 10px; font-weight: 500; font-size: 12px; color: var(--muted); background: transparent; border-radius: 99px; }
 .ai .result { margin: 0; font-size: 13px; color: var(--muted); }
 .ai .result b { color: var(--lime); font-weight: 600; }
+.artist { display: flex; align-items: center; gap: 12px; padding: 10px 12px; border: 1px solid #4b573c; border-radius: 10px; background: #141a0f; min-width: 0; }
+.artist[hidden] { display: none; }
+.artist img { width: 52px; height: 52px; border-radius: 50%; object-fit: cover; flex: none; background: #22281d; }
+.artist .info { display: grid; gap: 2px; min-width: 0; font-size: 13px; color: var(--muted); }
+.artist .info strong { color: var(--ink); font-size: 15px; font-weight: 600; }
+.artist .info .ok { color: var(--lime); font-weight: 600; }
+.artist .info .no { color: var(--warn); font-weight: 600; }
+.artist a { color: var(--lime); }
+.artist .alts { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 4px; }
+.artist .alts button { min-height: 28px; padding: 0 10px; font-size: 12px; font-weight: 500; color: var(--muted); background: transparent; border-radius: 99px; }
 @media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
 </style>
 </head>
@@ -146,6 +156,7 @@ ul.how b { color: var(--ink); font-weight: 600; }
         <button type="button">Algo tranquilo para relajarme</button>
         <button type="button">Rock para correr</button>
       </div>
+      <div id="artist" class="artist" role="status" aria-live="polite" hidden></div>
       <p id="aiResult" class="result" role="status">Una IA (Claude) crea una mezcla original con los sonidos del kit, inspirada en lo que le gusta. No copia ni descarga la canción: de un link de YouTube solo lee el título.</p>
     </form>
   </header>
@@ -826,16 +837,122 @@ async function youtubeTitle(id) {
   } catch {}
   return '';
 }
+// ---- Artist check: while the listener types a name, look it up (MusicBrainz for
+// who it is, Deezer for a photo and a link) and show a reference card, so they can
+// confirm it is the right artist before creating the music. Inside claude.ai,
+// where the page can't reach those sites, Claude answers instead. ----
+const country = (() => { try { const dn = new Intl.DisplayNames(['es'], { type: 'region' }); return (c) => (c ? dn.of(c) : ''); } catch { return (c) => c || ''; } })();
+const plainName = (t) => t.replace(/https?:\/\/\S+/g, ' ').replace(/^\s*(me gusta(n)?|me encanta(n)?|quiero( escuchar)?|algo (de|como)|musica de|música de|pon(me)?|escuchar)\s+/i, '').trim();
+const fold = (t) => String(t || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^a-z0-9]+/g, ' ').trim();
+let artistPick = null, artistFor = '', artistSeq = 0, artistTimer = 0;
+function deezerArtist(q) {
+  return new Promise((res) => {
+    const cb = '__dz' + Date.now() + Math.floor(Math.random() * 1e6);
+    const s = document.createElement('script');
+    const done = (v) => { clearTimeout(t); delete window[cb]; s.remove(); res(v); };
+    const t = setTimeout(() => done(null), 6000);
+    window[cb] = (d) => done((d && d.data) || null);
+    s.onerror = () => done(null);
+    s.src = 'https://api.deezer.com/search/artist?limit=5&output=jsonp&callback=' + cb + '&q=' + encodeURIComponent(q);
+    document.head.appendChild(s);
+  });
+}
+async function musicBrainz(q) {
+  try {
+    const r = await fetch('https://musicbrainz.org/ws/2/artist?fmt=json&limit=5&query=' + encodeURIComponent(q), { signal: AbortSignal.timeout(6000) });
+    if (!r.ok) return null;
+    return (await r.json()).artists || null;
+  } catch { return null; }
+}
+async function claudeArtist(q) {
+  const sample = await claudeSample();
+  if (!sample) return null;
+  try {
+    const d = await sample.json(`¿Existe un músico, cantante o grupo musical llamado o escrito parecido a "${q}"? Si hay varios, elige el más conocido.
+Responde SOLO con JSON: {"found": true o false, "name": "nombre bien escrito", "country": "país en español", "genre": "géneros principales en español", "about": "una frase corta en español sobre quién es"}`, { modelTier: 'quick' });
+    return d && d.found ? [{ name: d.name, where: d.country, about: [d.genre, d.about].filter(Boolean).join(' · '), genre: d.genre || '' }] : [];
+  } catch { return null; }
+}
+async function findArtists(q) {
+  const [mb, dz] = await Promise.all([musicBrainz(q), deezerArtist(q)]);
+  if (!mb && !dz) return claudeArtist(q);
+  const key = fold(q);
+  const close = (n) => { const f = fold(n); return f === key || f.startsWith(key + ' ') || key.startsWith(f + ' ') || (key.length >= 4 && f.includes(key)); };
+  const list = (mb || []).filter((a) => a.score >= 85 && close(a.name)).map((a) => {
+    const tags = (a.tags || []).sort((x, y) => y.count - x.count).slice(0, 3).map((t) => t.name);
+    return { name: a.name, where: country(a.country) || (a.area && a.area.name) || '', about: [a.disambiguation, tags.join(', ')].filter(Boolean).join(' · '), genre: tags.join(', ') };
+  });
+  // Deezer gives the photo and a link to listen; match it to the first candidate by name.
+  const dzList = (dz || []).filter((a) => close(a.name)).sort((a, b) => b.nb_fan - a.nb_fan);
+  if (!list.length && dzList.length) list.push({ name: dzList[0].name, where: '', about: '', genre: '' });
+  if (list.length && dzList.length) {
+    const d = dzList.find((a) => fold(a.name) === fold(list[0].name)) || dzList[0];
+    Object.assign(list[0], { pic: d.picture_medium, link: d.link, fans: d.nb_fan });
+  }
+  return list;
+}
+function showArtist(list, q) {
+  const box = $('artist');
+  if (!list) { box.hidden = true; return; }
+  if (!list.length) {
+    artistPick = null;
+    box.innerHTML = '<div class="info"><span class="no">No encontré un artista llamado «' + esc(q) + '».</span><span>Revisa cómo se escribe. Igual puedes crear música con lo que escribiste.</span></div>';
+    box.hidden = false; return;
+  }
+  const pick = (i) => {
+    const a = list[i]; artistPick = a;
+    const meta = [a.where, a.about].filter(Boolean).join(' · ');
+    const fans = a.fans ? new Intl.NumberFormat('es').format(a.fans) + ' fans en Deezer' : '';
+    box.innerHTML = (a.pic ? '<img alt="" src="' + esc(a.pic) + '">' : '') +
+      '<div class="info"><span class="ok">✓ Artista encontrado</span><strong>' + esc(a.name) + '</strong>' +
+      (meta ? '<span>' + esc(meta) + '</span>' : '') +
+      (fans || a.link ? '<span>' + esc(fans) + (a.link ? (fans ? ' · ' : '') + '<a href="' + esc(a.link) + '" target="_blank" rel="noopener">Escuchar en Deezer ↗</a>' : '') + '</span>' : '') +
+      (list.length > 1 ? '<div class="alts"><span>¿No es este?</span></div>' : '') + '</div>';
+    const alts = box.querySelector('.alts');
+    if (alts) list.forEach((b, j) => {
+      if (j === i) return;
+      const btn = document.createElement('button'); btn.type = 'button';
+      btn.textContent = b.name + (b.about ? ' (' + b.about.split(' · ')[0] + ')' : b.where ? ' (' + b.where + ')' : '');
+      btn.addEventListener('click', () => pick(j));
+      alts.appendChild(btn);
+    });
+    box.hidden = false;
+  };
+  pick(0);
+}
+async function checkArtist(text) {
+  const q = plainName(text);
+  const seq = ++artistSeq;
+  // Only names: no links, short, and not just a genre or mood ("techno oscuro").
+  const r = Generador.read(q);
+  if (!q || q.length < 2 || q.length > 50 || q.split(/\s+/).length > 5 || /https?:\/\//.test(text) || (r.genre && !r.artist) || r.moods.length) {
+    artistPick = null; artistFor = ''; $('artist').hidden = true; return;
+  }
+  if (q === artistFor) return;
+  artistFor = q; artistPick = null;
+  $('artist').innerHTML = '<div class="info"><span>Buscando «' + esc(q) + '»…</span></div>'; $('artist').hidden = false;
+  const list = await findArtists(q);
+  if (seq !== artistSeq) return;
+  showArtist(list, q);
+}
+$('aiText').addEventListener('input', () => { clearTimeout(artistTimer); artistTimer = setTimeout(() => checkArtist($('aiText').value), 600); });
+// What the card confirmed, added to the request so the AI (and the rules) know who it is.
+function artistHint(text) {
+  const a = artistPick;
+  if (!a || plainName(text) !== artistFor) return '';
+  return ' (artista: ' + [a.name, a.where, a.about].filter(Boolean).join(', ') + ')';
+}
 async function createMusic(text) {
   text = text.trim();
   if (!text || !SONG.layers.length) return;
   $('aiGo').disabled = true; $('aiGo').textContent = 'Creando…';
   $('aiResult').textContent = 'La IA está escuchando lo que pediste…';
   const yt = Generador.youtubeId(text) || '';
-  const words = text.replace(/https?:\/\/\S+/g, ' ');
+  const hint = artistHint(text);
+  const words = text.replace(/https?:\/\/\S+/g, ' ') + hint;
   let r, source = '', note = '';
   try {
-    const d = (await claudeSample()) ? await askClaudeHere(text, yt) : await askAi(text, yt);
+    const d = (await claudeSample()) ? await askClaudeHere(text + hint, yt) : await askAi(text + hint, yt);
     r = Generador.fromPlan(d.plan, SONG.layers, text);
     if (d.video) source = 'Inspirada en «' + d.video + '». ';
     note = r.summary ? r.summary + ' ' : '';
@@ -858,7 +975,7 @@ async function createMusic(text) {
   if (!playing && engine) await start();
 }
 $('ai').addEventListener('submit', (e) => { e.preventDefault(); createMusic($('aiText').value); });
-for (const b of document.querySelectorAll('#ai .examples button')) b.addEventListener('click', () => { $('aiText').value = b.textContent; createMusic(b.textContent); });
+for (const b of document.querySelectorAll('#ai .examples button')) b.addEventListener('click', async () => { $('aiText').value = b.textContent; await checkArtist(b.textContent); createMusic(b.textContent); });
 
 // ---- Start-up ----
 window.addEventListener('resize', () => { layout(); draw(); });
