@@ -1163,14 +1163,24 @@ $('deskReset').addEventListener('click', () => {
 });
 
 // ---- Sub-pages: #pista and #mesa. The transport (Play, BPM) goes with the one shown. ----
+// Tabs work by click (not only by the #hash), so they also work inside previews
+// that don't pass link clicks through.
+let pageNow = location.hash === '#mesa' ? 'mesa' : 'pista';
 function showPage() {
-  const mesa = location.hash === '#mesa';
+  const mesa = pageNow === 'mesa';
   $('pagePista').hidden = mesa; $('pageMesa').hidden = !mesa;
   $('tabPista').toggleAttribute('aria-current', !mesa); $('tabMesa').toggleAttribute('aria-current', mesa);
   if (mesa) { $('tabMesa').setAttribute('aria-current', 'page'); $('transportSlot').appendChild($('transport')); buildDesk(); requestAnimationFrame(meters); }
   else { $('tabPista').setAttribute('aria-current', 'page'); $('pistaTop').after($('transport')); layout(); draw(); }
 }
-window.addEventListener('hashchange', showPage);
+for (const [tab, name] of [['tabPista', 'pista'], ['tabMesa', 'mesa']]) {
+  $(tab).addEventListener('click', (e) => {
+    e.preventDefault();
+    pageNow = name; showPage();
+    try { history.replaceState(null, '', '#' + name); } catch {}
+  });
+}
+window.addEventListener('hashchange', () => { pageNow = location.hash === '#mesa' ? 'mesa' : 'pista'; showPage(); });
 
 // ---- Start-up ----
 window.addEventListener('resize', () => { layout(); draw(); });
