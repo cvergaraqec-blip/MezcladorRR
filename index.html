@@ -120,8 +120,6 @@ ul.how b { color: var(--ink); font-weight: 600; }
   border-radius: 9px; padding: 8px 12px; min-height: 44px; width: 100%; box-sizing: border-box; flex: 1 1 auto; min-width: 0;
 }
 .ai input[type=text]::placeholder { color: #8a9180; }
-.ai .examples { display: flex; flex-wrap: wrap; gap: 6px; }
-.ai .examples button { min-height: 30px; padding: 0 10px; font-weight: 500; font-size: 12px; color: var(--muted); background: transparent; border-radius: 99px; }
 .ai .result { margin: 0; font-size: 13px; color: var(--muted); }
 .ai .result b { color: var(--lime); font-weight: 600; }
 .artist { display: flex; align-items: center; gap: 12px; padding: 10px 12px; border: 1px solid #4b573c; border-radius: 10px; background: #141a0f; min-width: 0; }
@@ -134,6 +132,32 @@ ul.how b { color: var(--ink); font-weight: 600; }
 .artist a { color: var(--lime); }
 .artist .alts { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 4px; }
 .artist .alts button { min-height: 28px; padding: 0 10px; font-size: 12px; font-weight: 500; color: var(--muted); background: transparent; border-radius: 99px; }
+.tabs { display: flex; gap: 6px; border-bottom: 1px solid var(--border); margin-top: 10px; }
+.tabs a { font-weight: 600; font-size: 14px; color: var(--muted); text-decoration: none; padding: 10px 14px; border-bottom: 2px solid transparent; margin-bottom: -1px; }
+.tabs a[aria-current="page"] { color: var(--lime); border-bottom-color: var(--lime); }
+.tabs a:focus-visible { outline: 2px solid var(--lime); outline-offset: 2px; }
+.page { display: grid; gap: 18px; }
+.page[hidden] { display: none; }
+.desk { display: flex; gap: 8px; overflow-x: auto; padding: 14px; border: 1px solid var(--border); border-radius: 12px; background: #151a11; }
+.strip { flex: none; width: 92px; display: grid; gap: 8px; justify-items: center; padding: 10px 6px; border: 1px solid var(--line); border-radius: 10px; background: var(--panel); }
+.strip.group-start { margin-left: 10px; }
+.strip.master { width: 120px; border-color: #768d52; background: #1d2716; margin-left: 14px; }
+.strip .name { font-size: 12px; font-weight: 600; text-align: center; line-height: 1.2; min-height: 2.4em; display: flex; align-items: center; overflow-wrap: anywhere; }
+.strip .grp { font-size: 9.5px; font-weight: 700; letter-spacing: 1.2px; color: var(--muted); height: 13px; line-height: 13px; }
+.strip label { font-size: 10.5px; font-weight: 600; color: var(--muted); gap: 2px; width: 100%; text-align: center; }
+.strip input[type=range] { width: 100%; accent-color: var(--lime); margin: 0; }
+.strip .fader { display: flex; gap: 6px; align-items: stretch; height: 150px; }
+.strip .fader input { writing-mode: vertical-lr; direction: rtl; width: 22px; height: 100%; }
+.strip .meter { width: 8px; border-radius: 4px; background: #0e120b; position: relative; overflow: hidden; }
+.strip .meter i { position: absolute; left: 0; right: 0; bottom: 0; height: 0; background: linear-gradient(to top, #8fbf4a, var(--lime) 70%, var(--warn)); }
+.strip .val { font: 600 11px var(--font-num); color: var(--ink); }
+.strip .ms { display: flex; gap: 4px; }
+.strip .ms button { min-height: 28px; min-width: 32px; padding: 0 6px; font-size: 12px; }
+.strip .ms button[aria-pressed="true"].mute { background: var(--warn); color: #2a1d05; border-color: var(--warn); }
+.strip .ms button[aria-pressed="true"].solo { background: var(--lime); color: var(--on-lime); border-color: var(--lime); }
+.strip.silent .name { color: var(--muted); }
+.desk-help { display: flex; flex-wrap: wrap; gap: 6px 18px; color: var(--muted); font-size: 12.5px; }
+.desk-help b { color: var(--ink); font-weight: 600; }
 @media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
 </style>
 </head>
@@ -142,6 +166,13 @@ ul.how b { color: var(--ink); font-weight: 600; }
   <header>
     <span class="eyebrow">RadioRun · Adaptive music</span>
     <h1>Mezclador <span>RadioRun</span></h1>
+    <nav class="tabs" aria-label="Secciones">
+      <a href="#pista" id="tabPista" aria-current="page">Pista</a>
+      <a href="#mesa" id="tabMesa">Mesa mezcladora</a>
+    </nav>
+  </header>
+  <div id="pagePista" class="page">
+  <div id="pistaTop">
     <p class="sub">Cada fila es un instrumento de la música adaptativa. La parte verde es el rango de BPM en el que suena: arrastra sus bordes para que entre antes o después, o para que dure más o menos. Pulsa Play para oírlo con el mismo motor que la app, y <b>Guardar</b> para conservar la mezcla en este navegador y descargarla como <code>mix.json</code>.</p>
     <form id="ai" class="ai" autocomplete="off">
       <label for="aiText">¿Qué quiere escuchar el oyente?</label>
@@ -149,19 +180,12 @@ ul.how b { color: var(--ink); font-weight: 600; }
         <input id="aiText" type="text" maxlength="300" placeholder="Un artista (p. ej. Gepe), una canción, un género o un link de YouTube">
         <button id="aiGo" class="primary" type="submit" disabled>Crear música</button>
       </div>
-      <div class="examples" aria-label="Ejemplos">
-        <button type="button">Gepe</button>
-        <button type="button">Me gusta Bad Bunny</button>
-        <button type="button">Techno oscuro y rápido</button>
-        <button type="button">Algo tranquilo para relajarme</button>
-        <button type="button">Rock para correr</button>
-      </div>
       <div id="artist" class="artist" role="status" aria-live="polite" hidden></div>
       <p id="aiResult" class="result" role="status">Una IA (Claude) crea una mezcla original con los sonidos del kit, inspirada en lo que le gusta. No copia ni descarga la canción: de un link de YouTube solo lee el título.</p>
     </form>
-  </header>
+  </div>
 
-  <section class="transport" aria-label="Reproducción">
+  <section id="transport" class="transport" aria-label="Reproducción">
     <button id="play" class="primary" aria-pressed="false" disabled>Cargando…</button>
     <div class="seg" role="group" aria-label="Modo">
       <button id="modeFixed" aria-pressed="true">BPM fijo</button>
@@ -244,6 +268,19 @@ ul.how b { color: var(--ink); font-weight: 600; }
       <textarea id="export" readonly aria-label="Cambios en formato JSON"></textarea>
     </details>
   </section>
+  </div>
+
+  <div id="pageMesa" class="page" hidden>
+    <p class="sub">Como una mesa de mezcla: cada canal es un instrumento. Sube o baja su <b>volumen</b>, apágalo con <b>M</b> o escúchalo solo con <b>S</b>, muévelo a la izquierda o la derecha con <b>Panorama</b>, dale más o menos <b>Graves</b> y <b>Agudos</b>, y mándalo al <b>Eco</b>. Los cambios se oyen al instante con Play.</p>
+    <div id="transportSlot"></div>
+    <div id="desk" class="desk" aria-label="Canales"></div>
+    <div class="desk-help">
+      <span><b>Volumen</b> es el mismo de la Pista y se guarda en <code>mix.json</code>.</span>
+      <span><b>Panorama, Graves, Agudos y Eco</b> se guardan en este navegador.</span>
+      <span>Doble clic en un control lo devuelve al centro.</span>
+    </div>
+    <div class="row"><button id="deskReset">Restablecer la mesa</button></div>
+  </div>
 </div>
 
 <script src="generador.js"></script>
@@ -267,6 +304,32 @@ const DEFAULTS = {};
 // Editable settings per layer (song layers and the user's loops).
 const settings = {};
 const muted = new Set();
+const soloed = new Set();
+// ---- Mixing desk settings per channel (pan, tone, echo) and for the master ----
+const DESK_STORE = 'mezcladorrr.mesa';
+const EQ_K = 1 - Math.exp((-2 * Math.PI * 650) / 44100); // split between graves and agudos
+const desk = {};          // id -> {pan, low, high, echo} as the user set them
+const deskCooked = {};    // id -> {pl, pr, lowG, highG, echo} ready for the engine
+const DESK0 = { pan: 0, low: 0, high: 0, echo: 0 };
+let deskMaster = { volume: 0.9, time: 0.35, repeats: 0.35 };
+const COOKED0 = { pl: 1, pr: 1, lowG: 1, highG: 1, echo: 0 };
+const dB = (v) => Math.pow(10, v / 20);
+function cookDesk(id) {
+  const d = desk[id] || DESK0, a = ((d.pan + 1) * Math.PI) / 4;
+  deskCooked[id] = { pl: Math.cos(a) * Math.SQRT2, pr: Math.sin(a) * Math.SQRT2, lowG: dB(d.low), highG: dB(d.high), echo: d.echo };
+}
+const deskOf = (id) => deskCooked[id] || COOKED0;
+function applyEchoMaster() {
+  if (!ctx || !echoDelay) return;
+  echoDelay.delayTime.setTargetAtTime(deskMaster.time, ctx.currentTime, 0.05);
+  echoFb.gain.setTargetAtTime(deskMaster.repeats, ctx.currentTime, 0.05);
+  if (master) master.gain.setTargetAtTime(deskMaster.volume, ctx.currentTime, 0.03);
+}
+function saveDesk() { try { localStorage.setItem(DESK_STORE, JSON.stringify({ desk, master: deskMaster })); } catch {} }
+try {
+  const t = JSON.parse(localStorage.getItem(DESK_STORE) || 'null');
+  if (t) { Object.assign(desk, t.desk || {}); deskMaster = { ...deskMaster, ...(t.master || {}) }; for (const id in desk) cookDesk(id); }
+} catch {}
 const loops = []; // {id, name, data, beats, ...}
 let selected = null;
 let saved = '{}';
@@ -321,7 +384,7 @@ class Engine {
     this.loopLayers = [];
     this.age = 0; this.step = 0; this.toNext = 0; this.bpm = 90; this.tickLen = (rate * 60) / 90 / 4;
   }
-  targetOf(id, bpm) { const s = settings[id]; return !s || muted.has(id) ? 0 : s.gain * level(s, bpm); }
+  targetOf(id, bpm) { const s = settings[id]; return !s || muted.has(id) || (soloed.size && !soloed.has(id)) ? 0 : s.gain * level(s, bpm); }
   setBpm(bpm, instant = false) {
     for (const l of [...this.layers, ...this.loopLayers]) { l.target = this.targetOf(l.id, bpm); if (instant) l.g = l.target; }
   }
@@ -358,23 +421,37 @@ class Engine {
     if (!free) for (const v of l.voices) if (!free || v.gain < free.gain) free = v;
     free.start(data, vel, ++this.age);
   }
-  render(out, bpmNow) {
-    for (let i = 0; i < out.length; i++) {
+  // Each layer goes through its channel on the mixing desk: tone (graves/agudos),
+  // pan and a send to the echo. outL/outR is the dry mix, fxL/fxR the echo send.
+  channel(l, x, i, outL, outR, fxL, fxR) {
+    const c = deskOf(l.id);
+    const lp = l.lp || 0;
+    l.lp = lp + (x - lp) * EQ_K;
+    const y = l.lp * c.lowG + (x - l.lp) * c.highG;
+    const a = y < 0 ? -y : y; if (a > (l.peak || 0)) l.peak = a;
+    outL[i] += y * c.pl; outR[i] += y * c.pr;
+    if (c.echo) { fxL[i] += y * c.pl * c.echo; fxR[i] += y * c.pr * c.echo; }
+  }
+  render(outL, outR, fxL, fxR, bpmNow) {
+    for (let i = 0; i < outL.length; i++) {
       if (this.toNext <= 0) {
         if (this.step % 4 === 0) { this.bpm = bpmNow(); this.tickLen = (this.rate * 60) / this.bpm / 4; this.setBpm(this.bpm); }
         this.tick(); this.step++; this.toNext += this.tickLen;
       }
       this.toNext -= 1;
-      let mix = 0;
-      for (const l of this.layers) { l.g += (l.target - l.g) * this.smooth; let s = 0; for (const v of l.voices) if (v.data) s += v.next(); mix += s * l.g; }
-      for (const l of this.loopLayers) { l.g += (l.target - l.g) * this.smooth; mix += (l.voices[0].next() + l.voices[1].next()) * l.g; }
-      out[i] = softClip(mix);
+      for (const l of this.layers) {
+        l.g += (l.target - l.g) * this.smooth;
+        let s = 0; for (const v of l.voices) if (v.data) s += v.next();
+        if (s !== 0 || l.lp) this.channel(l, s * l.g, i, outL, outR, fxL, fxR);
+      }
+      for (const l of this.loopLayers) { l.g += (l.target - l.g) * this.smooth; this.channel(l, (l.voices[0].next() + l.voices[1].next()) * l.g, i, outL, outR, fxL, fxR); }
+      outL[i] = softClip(outL[i]); outR[i] = softClip(outR[i]);
     }
   }
 }
 
 // ---- Audio: blocks rendered just ahead of the clock ----
-let ctx = null, engine = null, samples = null, master = null, timer = null, nextTime = 0, playing = false;
+let ctx = null, engine = null, samples = null, master = null, echoIn = null, echoDelay = null, echoFb = null, timer = null, nextTime = 0, playing = false;
 let mode = 'fixed', journeyStart = 0, fixedBpm = 90;
 const BLOCK = 2048, AHEAD = 0.3;
 const $ = (id) => document.getElementById(id);
@@ -405,19 +482,27 @@ function currentBpm() {
 }
 function pump() {
   while (nextTime < ctx.currentTime + AHEAD) {
-    const out = new Float32Array(BLOCK);
-    engine.render(out, currentBpm);
-    const buf = ctx.createBuffer(1, BLOCK, ctx.sampleRate);
-    buf.copyToChannel(out, 0);
+    const L = new Float32Array(BLOCK), R = new Float32Array(BLOCK), FL = new Float32Array(BLOCK), FR = new Float32Array(BLOCK);
+    engine.render(L, R, FL, FR, currentBpm);
+    const buf = ctx.createBuffer(2, BLOCK, ctx.sampleRate);
+    buf.copyToChannel(L, 0); buf.copyToChannel(R, 1);
     const src = ctx.createBufferSource();
     src.buffer = buf; src.connect(master); src.start(nextTime);
+    const fx = ctx.createBuffer(2, BLOCK, ctx.sampleRate);
+    fx.copyToChannel(FL, 0); fx.copyToChannel(FR, 1);
+    const fsrc = ctx.createBufferSource();
+    fsrc.buffer = fx; fsrc.connect(echoIn); fsrc.start(nextTime);
     nextTime += BLOCK / ctx.sampleRate;
   }
 }
 async function start() {
   if (!engine) return;
   await ctx.resume();
-  master = ctx.createGain(); master.gain.value = 0.9; master.connect(ctx.destination);
+  master = ctx.createGain(); master.gain.value = deskMaster.volume; master.connect(ctx.destination);
+  // Echo bus: delay with feedback, then into the master.
+  echoIn = ctx.createGain(); echoDelay = ctx.createDelay(2); echoFb = ctx.createGain();
+  echoIn.connect(echoDelay); echoDelay.connect(echoFb); echoFb.connect(echoDelay); echoDelay.connect(master);
+  applyEchoMaster();
   engine.step = 0; engine.toNext = 0;
   if (mode === 'journey') journeyStart = ctx.currentTime + 0.05;
   engine.setBpm(currentBpm(), true);
@@ -562,7 +647,7 @@ function moveHandle(b) {
   s.in = [v[0], v[1]]; s.out = [v[2], v[3]];
   live(); fill(); draw();
 }
-function toggleMute(id) { muted.has(id) ? muted.delete(id) : muted.add(id); live(); draw(); }
+function toggleMute(id) { muted.has(id) ? muted.delete(id) : muted.add(id); live(); draw(); refreshDesk(); }
 
 // ---- Selected instrument panel ----
 function select(id) { selected = id; fill(); draw(); }
@@ -726,6 +811,7 @@ function changes() {
   return out;
 }
 function changed() {
+  refreshDesk();
   const c = JSON.stringify(changes());
   $('export').value = JSON.stringify(changes(), null, 2);
   const dirty = c !== saved;
@@ -975,7 +1061,116 @@ async function createMusic(text) {
   if (!playing && engine) await start();
 }
 $('ai').addEventListener('submit', (e) => { e.preventDefault(); createMusic($('aiText').value); });
-for (const b of document.querySelectorAll('#ai .examples button')) b.addEventListener('click', async () => { $('aiText').value = b.textContent; await checkArtist(b.textContent); createMusic(b.textContent); });
+
+// ---- Mesa mezcladora: one channel strip per instrument, plus the master ----
+const deskRows = () => rows.length ? rows : [];
+function knob(label, min, max, step, value, fmt, onInput, def = 0) {
+  const lab = document.createElement('label');
+  const val = document.createElement('span'); val.className = 'val';
+  const inp = document.createElement('input');
+  Object.assign(inp, { type: 'range', min, max, step, value });
+  inp.setAttribute('aria-label', label);
+  const show = () => { val.textContent = fmt(Number(inp.value)); };
+  inp.addEventListener('input', () => { onInput(Number(inp.value)); show(); });
+  inp.addEventListener('dblclick', () => { inp.value = def; onInput(def); show(); });
+  show();
+  lab.append(label, inp, val);
+  return lab;
+}
+const panTxt = (v) => (Math.abs(v) < 0.05 ? 'Centro' : (v < 0 ? 'Izq ' : 'Der ') + Math.round(Math.abs(v) * 100));
+const dbTxt = (v) => (v > 0 ? '+' : '') + v + ' dB';
+function setDesk(id, key, v) {
+  desk[id] = { ...DESK0, ...(desk[id] || {}), [key]: v };
+  cookDesk(id); saveDesk();
+}
+function buildDesk() {
+  const box = $('desk'); box.innerHTML = '';
+  for (const r of deskRows()) {
+    const id = r.id, d = { ...DESK0, ...(desk[id] || {}) };
+    const st = document.createElement('div'); st.className = 'strip' + (r.group && box.children.length ? ' group-start' : ''); st.dataset.id = id;
+    st.innerHTML = '<span class="grp"></span><span class="name"></span><div class="ms"><button type="button" class="mute">M</button><button type="button" class="solo">S</button></div><div class="fader"><div class="meter"><i></i></div></div><span class="val fval"></span>';
+    st.querySelector('.grp').textContent = r.group || '';
+    st.querySelector('.name').textContent = nameOf(id);
+    const [mb, sb] = st.querySelectorAll('.ms button');
+    mb.title = 'Silenciar'; sb.title = 'Escuchar solo este';
+    mb.addEventListener('click', () => toggleMute(id));
+    sb.addEventListener('click', () => { soloed.has(id) ? soloed.delete(id) : soloed.add(id); live(); refreshDesk(); });
+    // The fader is the instrument's volume, the same one as on the Pista (saved in mix.json).
+    const f = document.createElement('input');
+    Object.assign(f, { type: 'range', min: 0, max: 200, step: 5 });
+    f.setAttribute('aria-label', 'Volumen de ' + nameOf(id));
+    f.addEventListener('input', () => {
+      const base = DEFAULTS[id]?.gain ?? 0.2;
+      settings[id].gain = Math.round(base * Number(f.value)) / 100;
+      st.querySelector('.fval').textContent = f.value + ' %';
+      live(); if (selected === id) fill(); draw();
+    });
+    f.addEventListener('change', changed);
+    f.addEventListener('dblclick', () => { f.value = 100; f.dispatchEvent(new Event('input')); changed(); });
+    st.querySelector('.fader').prepend(f);
+    st.append(
+      knob('Panorama', -1, 1, 0.05, d.pan, panTxt, (v) => setDesk(id, 'pan', v)),
+      knob('Graves', -12, 12, 1, d.low, dbTxt, (v) => setDesk(id, 'low', v)),
+      knob('Agudos', -12, 12, 1, d.high, dbTxt, (v) => setDesk(id, 'high', v)),
+      knob('Eco', 0, 1, 0.05, d.echo, (v) => Math.round(v * 100) + ' %', (v) => setDesk(id, 'echo', v)),
+    );
+    box.appendChild(st);
+  }
+  const m = document.createElement('div'); m.className = 'strip master';
+  m.innerHTML = '<span class="grp">MASTER</span><span class="name">Salida</span>';
+  const setM = (k) => (v) => { deskMaster[k] = v; applyEchoMaster(); saveDesk(); };
+  m.append(
+    knob('Volumen', 0, 1.5, 0.05, deskMaster.volume, (v) => Math.round((v / 0.9) * 100) + ' %', setM('volume'), 0.9),
+    knob('Tiempo del eco', 0.08, 1, 0.01, deskMaster.time, (v) => Math.round(v * 1000) + ' ms', setM('time'), 0.35),
+    knob('Repeticiones', 0, 0.8, 0.05, deskMaster.repeats, (v) => Math.round(v * 100) + ' %', setM('repeats'), 0.35),
+  );
+  box.appendChild(m);
+  refreshDesk();
+}
+function refreshDesk() {
+  if ($('pageMesa').hidden) return;
+  for (const st of $('desk').querySelectorAll('.strip[data-id]')) {
+    const id = st.dataset.id, s = settings[id];
+    if (!s) continue;
+    const base = DEFAULTS[id]?.gain ?? 0.2, pct = Math.round((s.gain / base) * 100);
+    const f = st.querySelector('.fader input');
+    if (document.activeElement !== f) f.value = pct;
+    st.querySelector('.fval').textContent = pct + ' %';
+    st.querySelector('.mute').setAttribute('aria-pressed', String(muted.has(id)));
+    st.querySelector('.solo').setAttribute('aria-pressed', String(soloed.has(id)));
+    st.classList.toggle('silent', muted.has(id) || (soloed.size > 0 && !soloed.has(id)));
+  }
+}
+// Level meters: the engine keeps each channel's peak; show it and let it fall.
+function meters() {
+  if ($('pageMesa').hidden) return;
+  if (engine) {
+    const all = [...engine.layers, ...engine.loopLayers];
+    for (const st of $('desk').querySelectorAll('.strip[data-id]')) {
+      const l = all.find((x) => x.id === st.dataset.id);
+      const v = playing && l ? Math.min(1, Math.sqrt(l.peak || 0) * 1.2) : 0;
+      if (l) l.peak = (l.peak || 0) * 0.6;
+      st.querySelector('.meter i').style.height = (v * 100).toFixed(1) + '%';
+    }
+  }
+  requestAnimationFrame(meters);
+}
+$('deskReset').addEventListener('click', () => {
+  for (const id in desk) delete desk[id];
+  for (const id in deskCooked) delete deskCooked[id];
+  deskMaster = { volume: 0.9, time: 0.35, repeats: 0.35 };
+  soloed.clear(); applyEchoMaster(); saveDesk(); live(); buildDesk();
+});
+
+// ---- Sub-pages: #pista and #mesa. The transport (Play, BPM) goes with the one shown. ----
+function showPage() {
+  const mesa = location.hash === '#mesa';
+  $('pagePista').hidden = mesa; $('pageMesa').hidden = !mesa;
+  $('tabPista').toggleAttribute('aria-current', !mesa); $('tabMesa').toggleAttribute('aria-current', mesa);
+  if (mesa) { $('tabMesa').setAttribute('aria-current', 'page'); $('transportSlot').appendChild($('transport')); buildDesk(); requestAnimationFrame(meters); }
+  else { $('tabPista').setAttribute('aria-current', 'page'); $('pistaTop').after($('transport')); layout(); draw(); }
+}
+window.addEventListener('hashchange', showPage);
 
 // ---- Start-up ----
 window.addEventListener('resize', () => { layout(); draw(); });
@@ -990,7 +1185,7 @@ window.addEventListener('resize', () => { layout(); draw(); });
   let mix = hasServer ? null : readStore();
   if (!mix) mix = await fetch('mix.json', { cache: 'no-store' }).then((r) => (r.ok ? r.json() : {})).catch(() => ({}));
   useSong({ layers, mix: cleanMix(mix) });
-  layout(); fill(); draw(); changed();
+  layout(); fill(); draw(); changed(); showPage();
   await loadKit();
   $('play').disabled = false; $('play').textContent = 'Play'; $('aiGo').disabled = false;
 })().catch(() => {
