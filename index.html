@@ -158,6 +158,25 @@ ul.how b { color: var(--ink); font-weight: 600; }
 .strip.silent .name { color: var(--muted); }
 .desk-help { display: flex; flex-wrap: wrap; gap: 6px 18px; color: var(--muted); font-size: 12.5px; }
 .desk-help b { color: var(--ink); font-weight: 600; }
+.listen { display: grid; gap: 6px; margin-top: 6px; }
+.tracks { display: flex; flex-wrap: wrap; gap: 6px; }
+.tracks button { min-height: 30px; padding: 0 10px; font-size: 12px; font-weight: 500; border-radius: 99px; max-width: 260px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.tracks button[aria-pressed="true"] { background: var(--lime); color: var(--on-lime); border-color: var(--lime); }
+.links a { margin-right: 12px; }
+.ab { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.ab[hidden] { display: none; }
+.ab button { min-height: 34px; }
+.ab button[aria-pressed="true"] { background: var(--lime); color: var(--on-lime); border-color: var(--lime); }
+.map.flash { box-shadow: 0 0 0 2px var(--lime); transition: box-shadow 0.2s; }
+.mixes { display: grid; gap: 8px; }
+.mixes h2 { font-size: 14px; }
+.mixlist { display: grid; gap: 6px; }
+.mixitem { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; padding: 8px 10px; border: 1px solid var(--line); border-radius: 9px; background: #161c11; }
+.mixitem.open { border-color: var(--lime); }
+.mixitem .t { flex: 1 1 200px; min-width: 0; display: grid; }
+.mixitem .t strong { font-weight: 600; overflow-wrap: anywhere; }
+.mixitem .t span { color: var(--muted); font-size: 12px; }
+.mixitem button { min-height: 32px; padding: 0 10px; font-size: 12px; }
 @media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
 </style>
 </head>
@@ -181,8 +200,13 @@ ul.how b { color: var(--ink); font-weight: 600; }
         <button id="aiGo" class="primary" type="submit" disabled>Crear música</button>
       </div>
       <div id="artist" class="artist" role="status" aria-live="polite" hidden></div>
+      <div id="ab" class="ab" hidden><span class="note">Compara:</span><button type="button" id="abBefore" aria-pressed="false">Antes</button><button type="button" id="abAfter" aria-pressed="true">Después (la nueva)</button></div>
       <p id="aiResult" class="result" role="status">Una IA (Claude) crea una mezcla original con los sonidos del kit, inspirada en lo que le gusta. No copia ni descarga la canción: de un link de YouTube solo lee el título.</p>
     </form>
+    <section class="mixes" aria-labelledby="mixesTitle" style="margin-top:12px; max-width: 820px">
+      <h2 id="mixesTitle">Mis mezclas</h2>
+      <div id="mixListPista" class="mixlist"></div>
+    </section>
   </div>
 
   <section id="transport" class="transport" aria-label="Reproducción">
@@ -271,12 +295,16 @@ ul.how b { color: var(--ink); font-weight: 600; }
   </div>
 
   <div id="pageMesa" class="page" hidden>
-    <p class="sub">Como una mesa de mezcla: cada canal es un instrumento. Sube o baja su <b>volumen</b>, apágalo con <b>M</b> o escúchalo solo con <b>S</b>, muévelo a la izquierda o la derecha con <b>Panorama</b>, dale más o menos <b>Graves</b> y <b>Agudos</b>, y mándalo al <b>Eco</b>. Los cambios se oyen al instante con Play.</p>
+    <p class="sub">Como una mesa de mezcla: cada canal es un instrumento. Sube o baja su <b>volumen</b>, apágalo con <b>M</b> o escúchalo solo con <b>S</b>, muévelo a la izquierda o la derecha con <b>Panorama</b>, sube o baja su <b>Tono</b>, dale más o menos <b>Graves</b> y <b>Agudos</b>, y mándalo al <b>Eco</b>. Los cambios se oyen al instante con Play.</p>
+    <section class="mixes" aria-label="Mis mezclas">
+      <h2>Mis mezclas</h2>
+      <div id="mixListMesa" class="mixlist"></div>
+    </section>
     <div id="transportSlot"></div>
     <div id="desk" class="desk" aria-label="Canales"></div>
     <div class="desk-help">
       <span><b>Volumen</b> es el mismo de la Pista y se guarda en <code>mix.json</code>.</span>
-      <span><b>Panorama, Graves, Agudos y Eco</b> se guardan en este navegador.</span>
+      <span><b>Tono, Panorama, Graves, Agudos y Eco</b> se guardan en este navegador y en Mis mezclas.</span>
       <span>Doble clic en un control lo devuelve al centro.</span>
     </div>
     <div class="row"><button id="deskReset">Restablecer la mesa</button></div>
@@ -310,22 +338,72 @@ const DESK_STORE = 'mezcladorrr.mesa';
 const EQ_K = 1 - Math.exp((-2 * Math.PI * 650) / 44100); // split between graves and agudos
 const desk = {};          // id -> {pan, low, high, echo} as the user set them
 const deskCooked = {};    // id -> {pl, pr, lowG, highG, echo} ready for the engine
-const DESK0 = { pan: 0, low: 0, high: 0, echo: 0 };
+const DESK0 = { pan: 0, low: 0, high: 0, echo: 0, pitch: 0 };
 let deskMaster = { volume: 0.9, time: 0.35, repeats: 0.35 };
-const COOKED0 = { pl: 1, pr: 1, lowG: 1, highG: 1, echo: 0 };
+const COOKED0 = { pl: 1, pr: 1, lowG: 1, highG: 1, echo: 0, rate: 1 };
 const dB = (v) => Math.pow(10, v / 20);
 function cookDesk(id) {
   const d = desk[id] || DESK0, a = ((d.pan + 1) * Math.PI) / 4;
-  deskCooked[id] = { pl: Math.cos(a) * Math.SQRT2, pr: Math.sin(a) * Math.SQRT2, lowG: dB(d.low), highG: dB(d.high), echo: d.echo };
+  deskCooked[id] = { pl: Math.cos(a) * Math.SQRT2, pr: Math.sin(a) * Math.SQRT2, lowG: dB(d.low), highG: dB(d.high), echo: d.echo, rate: Math.pow(2, (d.pitch || 0) / 12) };
 }
 const deskOf = (id) => deskCooked[id] || COOKED0;
+// Replace the whole desk (all channels and the master echo) at once.
+function setDeskAll(d, m) {
+  for (const k in desk) delete desk[k];
+  for (const k in deskCooked) delete deskCooked[k];
+  Object.assign(desk, JSON.parse(JSON.stringify(d || {})));
+  for (const k in desk) cookDesk(k);
+  if (m) deskMaster = { ...deskMaster, ...m };
+  applyEchoMaster(); saveDesk();
+}
+// ---- Each style gets its own sound on the desk, so two mixes never sound alike:
+// a key (tono) for the melodic instruments, a tone colour (graves/agudos), echo on
+// some instruments and a stereo spread. Each artist also gets its own key, picked
+// from their name. ----
+const MELODIC = new Set(['pad', 'flute', 'bells', 'sub', 'roll', 'acid', 'stab', 'heartbeat']);
+const PROFILES = {
+  reggaeton: { key: -2, low: 4, high: -1, echo: { clap: 0.15 }, spread: 0.3, repeats: 0.25 },
+  dembow: { key: -1, low: 4, high: 1, echo: { perc: 0.15 }, spread: 0.4, repeats: 0.25 },
+  trap: { key: -3, low: 6, high: 1, echo: { clap: 0.2, pad: 0.3 }, spread: 0.5, repeats: 0.3 },
+  hiphop: { key: -2, low: 4, high: -3, echo: { pad: 0.2 }, spread: 0.3, repeats: 0.2 },
+  pop: { key: 2, low: 1, high: 2, echo: { flute: 0.25, stab: 0.2 }, spread: 0.4, repeats: 0.3 },
+  rock: { key: 0, low: 2, high: 4, echo: {}, spread: 0.6, repeats: 0.15 },
+  metal: { key: -4, low: 5, high: 5, echo: {}, spread: 0.7, repeats: 0.1 },
+  house: { key: 2, low: 3, high: 1, echo: { stab: 0.35, clap: 0.1 }, spread: 0.5, repeats: 0.35 },
+  techno: { key: 1, low: 3, high: 2, echo: { stab: 0.4, acid: 0.3, clap: 0.2 }, spread: 0.6, repeats: 0.45 },
+  trance: { key: 3, low: 2, high: 3, echo: { stab: 0.5, pad: 0.4 }, spread: 0.6, repeats: 0.5 },
+  edm: { key: 4, low: 3, high: 3, echo: { stab: 0.4 }, spread: 0.5, repeats: 0.4 },
+  dnb: { key: 1, low: 5, high: 3, echo: { pad: 0.3 }, spread: 0.5, repeats: 0.3 },
+  latin: { key: 2, low: 0, high: 2, echo: { flute: 0.35, perc: 0.1 }, spread: 0.7, repeats: 0.3 },
+  reggae: { key: -3, low: 5, high: -2, echo: { clap: 0.45, stab: 0.45 }, spread: 0.5, repeats: 0.55 },
+  jazz: { key: -1, low: 1, high: -3, echo: { ride: 0.15 }, spread: 0.6, repeats: 0.2 },
+  lofi: { key: -3, low: 3, high: -8, echo: { pad: 0.3 }, spread: 0.3, repeats: 0.35 },
+  chill: { key: -5, low: 2, high: -6, echo: { pad: 0.5, flute: 0.5, air: 0.3 }, spread: 0.5, repeats: 0.5 },
+  classical: { key: 0, low: 0, high: -2, echo: { pad: 0.5, flute: 0.4 }, spread: 0.6, repeats: 0.45 },
+  workout: { key: 2, low: 3, high: 3, echo: { stab: 0.2 }, spread: 0.5, repeats: 0.3 },
+};
+function soundProfile(genre, seed, ids, bpm) {
+  const p = PROFILES[genre] || PROFILES.pop;
+  let h = 7; for (const c of seed) h = (h * 31 + c.charCodeAt(0)) >>> 0;
+  const rnd = () => { h ^= h << 13; h ^= h >>> 17; h ^= h << 5; return ((h >>> 0) % 1000) / 1000; };
+  const key = p.key + Math.round(rnd() * 6) - 3; // every artist in a different key
+  const d = {};
+  for (const id of ids) {
+    const mel = MELODIC.has(id);
+    const pan = mel || id === 'kick' || id === 'sub' ? 0 : Math.round((rnd() * 2 - 1) * p.spread * 20) / 20;
+    d[id] = { pan, low: p.low, high: p.high, echo: p.echo[id] || 0, pitch: mel ? key : Math.round(key / 3) };
+  }
+  // Echo in time with the music: a dotted eighth note.
+  return { desk: d, master: { time: Math.min(1, Math.round((60 / bpm) * 0.75 * 1000) / 1000), repeats: p.repeats } };
+}
+
 function applyEchoMaster() {
   if (!ctx || !echoDelay) return;
   echoDelay.delayTime.setTargetAtTime(deskMaster.time, ctx.currentTime, 0.05);
   echoFb.gain.setTargetAtTime(deskMaster.repeats, ctx.currentTime, 0.05);
   if (master) master.gain.setTargetAtTime(deskMaster.volume, ctx.currentTime, 0.03);
 }
-function saveDesk() { try { localStorage.setItem(DESK_STORE, JSON.stringify({ desk, master: deskMaster })); } catch {} }
+function saveDesk() { try { localStorage.setItem(DESK_STORE, JSON.stringify({ desk, master: deskMaster })); } catch {} if (typeof saveOpenMix === 'function') saveOpenMix(); }
 try {
   const t = JSON.parse(localStorage.getItem(DESK_STORE) || 'null');
   if (t) { Object.assign(desk, t.desk || {}); deskMaster = { ...deskMaster, ...(t.master || {}) }; for (const id in desk) cookDesk(id); }
@@ -357,12 +435,14 @@ const level = (s, bpm) => smoothstep(s.in[0], s.in[1], bpm) * (s.floor + (1 - s.
 class Voice {
   constructor() { this.data = null; this.pos = 0; this.gain = 1; this.step = 0; this.vel = 1; this.age = 0; }
   get active() { return this.data !== null; }
-  start(data, vel, age, from = 0, fadeIn = 0) { this.data = data; this.pos = from; this.gain = fadeIn ? 0 : 1; this.step = fadeIn ? 1 / fadeIn : 0; this.vel = vel; this.age = age; this.loop = false; }
+  start(data, vel, age, from = 0, fadeIn = 0, rate = 1) { this.rate = rate; this.data = data; this.pos = from; this.gain = fadeIn ? 0 : 1; this.step = fadeIn ? 1 / fadeIn : 0; this.vel = vel; this.age = age; this.loop = false; }
   fadeOut(n) { if (!this.data) return; this.step = -this.gain / Math.max(1, n); if (this.step === 0) this.data = null; }
   next() {
     const d = this.data; if (!d) return 0;
-    const v = d[this.pos] * this.gain * this.vel;
-    this.pos++;
+    let v;
+    if (this.rate === 1 || this.rate === undefined) { v = d[this.pos]; this.pos++; }
+    else { const i = this.pos | 0, f = this.pos - i; v = d[i] + ((d[i + 1] || 0) - d[i]) * f; this.pos += this.rate; }
+    v *= this.gain * this.vel;
     if (this.pos >= d.length) { if (this.loop) this.pos = 0; else this.data = null; }
     if (this.step !== 0) {
       this.gain += this.step;
@@ -419,7 +499,7 @@ class Engine {
     let free = null;
     for (const v of l.voices) if (!v.active) free = free ?? v;
     if (!free) for (const v of l.voices) if (!free || v.gain < free.gain) free = v;
-    free.start(data, vel, ++this.age);
+    free.start(data, vel, ++this.age, 0, 0, deskOf(l.id).rate);
   }
   // Each layer goes through its channel on the mixing desk: tone (graves/agudos),
   // pan and a send to the echo. outL/outR is the dry mix, fxL/fxR the echo send.
@@ -497,6 +577,7 @@ function pump() {
 }
 async function start() {
   if (!engine) return;
+  if (typeof stopPreview === 'function') stopPreview();
   await ctx.resume();
   master = ctx.createGain(); master.gain.value = deskMaster.volume; master.connect(ctx.destination);
   // Echo bus: delay with feedback, then into the master.
@@ -710,7 +791,7 @@ function setMode(m) {
 }
 $('modeFixed').addEventListener('click', () => setMode('fixed'));
 $('modeJourney').addEventListener('click', () => setMode('journey'));
-$('bpm').addEventListener('input', (e) => { fixedBpm = Number(e.target.value); frame(); });
+$('bpm').addEventListener('input', (e) => { fixedBpm = Number(e.target.value); frame(); saveOpenMix(); });
 
 // ---- Your loops ----
 let loopCount = 0;
@@ -812,6 +893,7 @@ function changes() {
 }
 function changed() {
   refreshDesk();
+  saveOpenMix();
   const c = JSON.stringify(changes());
   $('export').value = JSON.stringify(changes(), null, 2);
   const dirty = c !== saved;
@@ -931,7 +1013,8 @@ const country = (() => { try { const dn = new Intl.DisplayNames(['es'], { type: 
 const plainName = (t) => t.replace(/https?:\/\/\S+/g, ' ').replace(/^\s*(me gusta(n)?|me encanta(n)?|quiero( escuchar)?|algo (de|como)|musica de|música de|pon(me)?|escuchar)\s+/i, '').trim();
 const fold = (t) => String(t || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^a-z0-9]+/g, ' ').trim();
 let artistPick = null, artistFor = '', artistSeq = 0, artistTimer = 0;
-function deezerArtist(q) {
+function deezerArtist(q) { return deezer('search/artist?limit=5&q=' + encodeURIComponent(q)); }
+function deezer(path) {
   return new Promise((res) => {
     const cb = '__dz' + Date.now() + Math.floor(Math.random() * 1e6);
     const s = document.createElement('script');
@@ -939,7 +1022,7 @@ function deezerArtist(q) {
     const t = setTimeout(() => done(null), 6000);
     window[cb] = (d) => done((d && d.data) || null);
     s.onerror = () => done(null);
-    s.src = 'https://api.deezer.com/search/artist?limit=5&output=jsonp&callback=' + cb + '&q=' + encodeURIComponent(q);
+    s.src = 'https://api.deezer.com/' + path + (path.includes('?') ? '&' : '?') + 'output=jsonp&callback=' + cb;
     document.head.appendChild(s);
   });
 }
@@ -973,7 +1056,7 @@ async function findArtists(q) {
   if (!list.length && dzList.length) list.push({ name: dzList[0].name, where: '', about: '', genre: '' });
   if (list.length && dzList.length) {
     const d = dzList.find((a) => fold(a.name) === fold(list[0].name)) || dzList[0];
-    Object.assign(list[0], { pic: d.picture_medium, link: d.link, fans: d.nb_fan });
+    Object.assign(list[0], { pic: d.picture_medium, link: d.link, fans: d.nb_fan, dzId: d.id });
   }
   return list;
 }
@@ -993,7 +1076,11 @@ function showArtist(list, q) {
       '<div class="info"><span class="ok">✓ Artista encontrado</span><strong>' + esc(a.name) + '</strong>' +
       (meta ? '<span>' + esc(meta) + '</span>' : '') +
       (fans || a.link ? '<span>' + esc(fans) + (a.link ? (fans ? ' · ' : '') + '<a href="' + esc(a.link) + '" target="_blank" rel="noopener">Escuchar en Deezer ↗</a>' : '') + '</span>' : '') +
+      '<div class="listen"><span>Escúchalo antes de crear:</span><div class="tracks"><span class="note">Buscando sus canciones…</span></div>' +
+      '<span class="links"><a target="_blank" rel="noopener" href="https://www.youtube.com/results?search_query=' + encodeURIComponent(a.name) + '">Buscar en YouTube ↗</a>' +
+      '<a target="_blank" rel="noopener" href="https://open.spotify.com/search/' + encodeURIComponent(a.name) + '">Buscar en Spotify ↗</a></span></div>' +
       (list.length > 1 ? '<div class="alts"><span>¿No es este?</span></div>' : '') + '</div>';
+    loadTracks(a, box.querySelector('.tracks'));
     const alts = box.querySelector('.alts');
     if (alts) list.forEach((b, j) => {
       if (j === i) return;
@@ -1028,10 +1115,113 @@ function artistHint(text) {
   if (!a || plainName(text) !== artistFor) return '';
   return ' (artista: ' + [a.name, a.where, a.about].filter(Boolean).join(', ') + ')';
 }
+// ---- Listen to the artist first: Deezer's 30-second previews of their top songs ----
+const preview = new Audio();
+let previewBtn = null;
+preview.addEventListener('ended', () => { if (previewBtn) previewBtn.setAttribute('aria-pressed', 'false'); previewBtn = null; });
+function stopPreview() { preview.pause(); if (previewBtn) previewBtn.setAttribute('aria-pressed', 'false'); previewBtn = null; }
+async function loadTracks(a, box) {
+  let id = a.dzId;
+  if (!id) { const d = await deezerArtist(a.name); const m = d && (d.find((x) => fold(x.name) === fold(a.name)) || d[0]); id = m && m.id; }
+  const top = id ? await deezer('artist/' + id + '/top?limit=5') : null;
+  if (!box.isConnected) return;
+  const tracks = (top || []).filter((t) => t.preview);
+  if (!tracks.length) { box.innerHTML = '<span class="note">Aquí no puedo reproducir sus canciones; usa los enlaces de abajo.</span>'; return; }
+  box.innerHTML = '';
+  for (const t of tracks) {
+    const b = document.createElement('button'); b.type = 'button'; b.setAttribute('aria-pressed', 'false');
+    b.textContent = '▶ ' + t.title; b.title = t.title + ' (30 s)';
+    b.addEventListener('click', () => {
+      if (previewBtn === b) { stopPreview(); return; }
+      stopPreview(); if (playing) stop();
+      preview.src = t.preview; preview.play().catch(() => {});
+      previewBtn = b; b.setAttribute('aria-pressed', 'true');
+    });
+    box.appendChild(b);
+  }
+}
+
+// ---- Mis mezclas: every mix you create is kept here (this browser), to listen
+// again or open in the Mesa mezcladora. Edits to the open one are saved into it. ----
+const MIXES_STORE = 'mezcladorrr.mezclas';
+let mixes = [];
+try { mixes = JSON.parse(localStorage.getItem(MIXES_STORE) || '[]'); if (!Array.isArray(mixes)) mixes = []; } catch { mixes = []; }
+let openMix = null, mixTimer = 0;
+function storeMixes() { try { localStorage.setItem(MIXES_STORE, JSON.stringify(mixes)); } catch {} }
+function addMix(name, style, bpm) {
+  const m = { id: 'm' + Date.now(), name, style, bpm, mix: changes(), desk: JSON.parse(JSON.stringify(desk)), master: { ...deskMaster }, created: Date.now() };
+  mixes.unshift(m); mixes = mixes.slice(0, 40);
+  openMix = m.id; storeMixes(); renderMixes();
+}
+function saveOpenMix() {
+  if (!openMix) return;
+  clearTimeout(mixTimer);
+  mixTimer = setTimeout(() => {
+    const m = mixes.find((x) => x.id === openMix); if (!m) return;
+    m.mix = changes(); m.desk = JSON.parse(JSON.stringify(desk)); m.master = { ...deskMaster }; m.bpm = fixedBpm;
+    storeMixes(); renderMixes();
+  }, 400);
+}
+function openMixById(id, then) {
+  const m = mixes.find((x) => x.id === id); if (!m) return;
+  openMix = id; hideAb();
+  applyMix(cleanMix(m.mix || {}));
+  setDeskAll(m.desk, m.master);
+  fixedBpm = m.bpm || fixedBpm; $('bpm').value = fixedBpm;
+  if (mode !== 'fixed') setMode('fixed');
+  live(); fill(); draw(); frame(); changed(); renderMixes();
+  if (then === 'mesa') { pageNow = 'mesa'; try { history.replaceState(null, '', '#mesa'); } catch {} showPage(); }
+  else if (!$('pageMesa').hidden) buildDesk();
+}
+function renderMixes() {
+  for (const boxId of ['mixListPista', 'mixListMesa']) {
+    const box = $(boxId); box.innerHTML = '';
+    if (!mixes.length) { box.innerHTML = '<p class="note">Todavía no hay mezclas. Escribe un artista o un estilo y pulsa <b>Crear música</b>: cada mezcla queda aquí.</p>'; continue; }
+    for (const m of mixes) {
+      const row = document.createElement('div'); row.className = 'mixitem' + (m.id === openMix ? ' open' : '');
+      const when = new Date(m.created).toLocaleString('es', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
+      row.innerHTML = '<div class="t"><strong></strong><span></span></div>';
+      row.querySelector('strong').textContent = m.name + (m.id === openMix ? ' (abierta)' : '');
+      row.querySelector('span').textContent = [m.style, (m.bpm || '?') + ' BPM', when].filter(Boolean).join(' · ');
+      const mk = (label, fn) => { const b = document.createElement('button'); b.type = 'button'; b.textContent = label; b.addEventListener('click', fn); row.appendChild(b); return b; };
+      mk('▶ Escuchar', async () => { stopPreview(); openMixById(m.id); if (!playing && engine) await start(); });
+      if (boxId === 'mixListPista') mk('Editar en la mesa', async () => { openMixById(m.id, 'mesa'); });
+      const del = mk('Borrar', () => {
+        if (del.dataset.sure) { mixes = mixes.filter((x) => x.id !== m.id); if (openMix === m.id) openMix = null; storeMixes(); renderMixes(); return; }
+        del.dataset.sure = '1'; del.textContent = '¿Seguro?'; setTimeout(() => { if (del.isConnected) { delete del.dataset.sure; del.textContent = 'Borrar'; } }, 3000);
+      });
+      box.appendChild(row);
+    }
+  }
+}
+
+// ---- Antes / después: right after creating, switch between the old and new mix ----
+let abState = null; // {before: {mix, desk, bpm}, after: {...}}
+function snapshot() { return { mix: changes(), desk: JSON.parse(JSON.stringify(desk)), master: { ...deskMaster }, bpm: fixedBpm }; }
+function applySnap(sn) {
+  applyMix(cleanMix(sn.mix));
+  const keep = openMix; openMix = null; setDeskAll(sn.desk, sn.master); openMix = keep;
+  fixedBpm = sn.bpm; $('bpm').value = sn.bpm;
+  live(); fill(); draw(); frame(); refreshDesk();
+}
+function hideAb() { abState = null; $('ab').hidden = true; }
+function showAb(which) {
+  if (!abState) return;
+  applySnap(abState[which]);
+  $('abBefore').setAttribute('aria-pressed', String(which === 'before'));
+  $('abAfter').setAttribute('aria-pressed', String(which === 'after'));
+  flashMap();
+}
+function flashMap() { const m = document.querySelector('.map'); m.classList.add('flash'); setTimeout(() => m.classList.remove('flash'), 900); }
+$('abBefore').addEventListener('click', async () => { showAb('before'); if (!playing && engine) await start(); });
+$('abAfter').addEventListener('click', async () => { showAb('after'); if (!playing && engine) await start(); });
+
 async function createMusic(text) {
   text = text.trim();
   if (!text || !SONG.layers.length) return;
   $('aiGo').disabled = true; $('aiGo').textContent = 'Creando…';
+  stopPreview();
+  const before = snapshot();
   $('aiResult').textContent = 'La IA está escuchando lo que pediste…';
   const yt = Generador.youtubeId(text) || '';
   const hint = artistHint(text);
@@ -1052,11 +1242,21 @@ async function createMusic(text) {
     note = '(La IA no estaba disponible, así que la hice con reglas.) ';
   }
   applyMix(cleanMix(r.mix));
+  const genreKey = (Generador.GENRES[r.genre] ? r.genre : Generador.read(String(r.genre || '') + ' ' + words).genre) || 'pop';
+  const who = (artistPick && plainName(text) === artistFor) ? artistPick.name : words;
+  const snd = soundProfile(genreKey, fold(who) || 'mezcla', r.instruments, r.bpm);
+  openMix = null; setDeskAll(snd.desk, snd.master);
+  const keyNote = snd.desk[r.instruments.find((id) => MELODIC.has(id))]?.pitch;
   fixedBpm = r.bpm; $('bpm').value = r.bpm;
   if (mode !== 'fixed') setMode('fixed');
   live(); fill(); draw(); frame(); changed();
+  const name = (artistPick && plainName(text) === artistFor) ? artistPick.name : text.replace(/https?:\/\/\S+/g, '').trim() || 'Video de YouTube';
+  addMix(name, r.label, r.bpm);
+  abState = { before, after: snapshot() };
+  $('ab').hidden = false; $('abBefore').setAttribute('aria-pressed', 'false'); $('abAfter').setAttribute('aria-pressed', 'true');
+  flashMap();
   $('aiResult').innerHTML = esc(source) + '<b>' + esc(r.label) + ' · ' + r.bpm + ' BPM</b> con ' + esc(r.instruments.map(nameOf).join(', ')) + '. ' +
-    esc(note) + 'En Recorrido se oye cómo crece. Pulsa <b>Guardar</b> para conservarla.';
+    esc(note) + (keyNote ? 'Tono ' + (keyNote > 0 ? '+' : '') + keyNote + '. ' : '') + 'Ya suena y quedó en <b>Mis mezclas</b>. Usa <b>Antes / Después</b> para oír el cambio, o ábrela en la Mesa mezcladora.';
   $('aiGo').disabled = false; $('aiGo').textContent = 'Crear música';
   if (!playing && engine) await start();
 }
@@ -1110,6 +1310,7 @@ function buildDesk() {
     st.querySelector('.fader').prepend(f);
     st.append(
       knob('Panorama', -1, 1, 0.05, d.pan, panTxt, (v) => setDesk(id, 'pan', v)),
+      knob('Tono', -12, 12, 1, d.pitch || 0, (v) => (v > 0 ? '+' : '') + v + ' st', (v) => setDesk(id, 'pitch', v)),
       knob('Graves', -12, 12, 1, d.low, dbTxt, (v) => setDesk(id, 'low', v)),
       knob('Agudos', -12, 12, 1, d.high, dbTxt, (v) => setDesk(id, 'high', v)),
       knob('Eco', 0, 1, 0.05, d.echo, (v) => Math.round(v * 100) + ' %', (v) => setDesk(id, 'echo', v)),
@@ -1195,7 +1396,7 @@ window.addEventListener('resize', () => { layout(); draw(); });
   let mix = hasServer ? null : readStore();
   if (!mix) mix = await fetch('mix.json', { cache: 'no-store' }).then((r) => (r.ok ? r.json() : {})).catch(() => ({}));
   useSong({ layers, mix: cleanMix(mix) });
-  layout(); fill(); draw(); changed(); showPage();
+  layout(); fill(); draw(); changed(); showPage(); renderMixes();
   await loadKit();
   $('play').disabled = false; $('play').textContent = 'Play'; $('aiGo').disabled = false;
 })().catch(() => {
