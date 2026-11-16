@@ -866,14 +866,17 @@ async function addLoopFile(file, meta = {}) {
     // A first guess at the length in beats: the power of two closest to 120 BPM.
     const guess = meta.bpm ? Math.max(1, Math.round((seconds * meta.bpm) / 60)) : Math.max(1, 2 ** Math.round(Math.log2((seconds * 120) / 60)));
     const id = 'loop-' + ++loopCount;
-    const loop = { id, name: (meta.name || file.name.replace(/\.[^.]+$/, '')).slice(0, 28) || 'Mi loop', data, beats: guess, seconds, credit: meta.credit || null };
+    const loop = { id, name: (meta.name || file.name.replace(/\.[^.]+$/, '')).slice(0, 28) || 'Mi loop', data, beats: meta.beats || guess, seconds, credit: meta.credit || null, src: meta.src || null };
     loops.push(loop);
     settings[id] = { in: [MIN, MIN], out: null, floor: 0, gain: 0.3 };
     DEFAULTS[id] = undefined;
     if (engine) engine.addLoop(loop);
-    renderLoops(); layout(); select(id); live();
+    if (meta.settings) settings[id] = { ...settings[id], ...meta.settings };
+    if (meta.desk) { desk[id] = meta.desk; cookDesk(id); }
+    renderLoops(); layout(); if (!meta.quiet) select(id); live();
     if (!$('pageMesa').hidden) buildDesk();
-    return true;
+    if (!meta.quiet) saveOpenMix();
+    return id;
   } catch {
     $('loopList').insertAdjacentHTML('afterbegin', '<p class="note">No se pudo leer ese archivo. Prueba con un WAV o MP3.</p>');
     return false;
@@ -888,10 +891,10 @@ function renderLoops() {
     div.querySelector('strong').textContent = l.name;
     if (l.credit) { const c = document.createElement('a'); c.className = 'note'; c.href = l.credit.link; c.target = '_blank'; c.rel = 'noopener'; c.textContent = l.credit.text; div.appendChild(c); }
     const inp = div.querySelector('input'); inp.value = l.beats;
-    inp.addEventListener('change', () => { l.beats = Math.min(128, Math.max(1, Math.round(Number(inp.value)) || l.beats)); renderLoops(); });
+    inp.addEventListener('change', () => { l.beats = Math.min(128, Math.max(1, Math.round(Number(inp.value)) || l.beats)); renderLoops(); saveOpenMix(); });
     div.querySelector('button').addEventListener('click', () => {
       loops.splice(loops.indexOf(l), 1); delete settings[l.id]; if (engine) engine.removeLoop(l.id);
-      if (selected === l.id) selected = SONG.layers[0].id; renderLoops(); layout(); fill(); draw();
+      delete desk[l.id]; delete deskCooked[l.id]; if (selected === l.id) selected = SONG.layers[0].id; renderLoops(); layout(); fill(); draw(); if (!$('pageMesa').hidden) buildDesk(); saveOpenMix();
     });
     list.appendChild(div);
   }
@@ -1211,25 +1214,51 @@ let mixes = [];
 try { mixes = JSON.parse(localStorage.getItem(MIXES_STORE) || '[]'); if (!Array.isArray(mixes)) mixes = []; } catch { mixes = []; }
 let openMix = null, mixTimer = 0;
 function storeMixes() { try { localStorage.setItem(MIXES_STORE, JSON.stringify(mixes)); } catch {} }
+// Loops from Música libre are kept by their link (and credit), with their own
+// volume, BPM range and desk settings, so the mix brings them back when opened.
+// Loops from your own files can't be kept: the browser can't reopen them.
+function loopsSnapshot() {
+  return loops.filter((l) => l.src).map((l) => ({ src: l.src, name: l.name, credit: l.credit, beats: l.beats, settings: { ...settings[l.id] }, desk: desk[l.id] ? { ...desk[l.id] } : null }));
+}
+const deskWithoutLoops = () => { const d = JSON.parse(JSON.stringify(desk)); for (const k in d) if (k.startsWith('loop-')) delete d[k]; return d; };
+let loadingMix = false;
+function clearLoops() {
+  for (const l of [...loops]) { if (engine) engine.removeLoop(l.id); delete settings[l.id]; delete desk[l.id]; delete deskCooked[l.id]; }
+  loops.length = 0;
+  if (!settings[selected]) selected = SONG.layers[0].id;
+}
 function addMix(name, style, bpm) {
-  const m = { id: 'm' + Date.now(), name, style, bpm, mix: changes(), desk: JSON.parse(JSON.stringify(desk)), master: { ...deskMaster }, created: Date.now() };
+  const m = { id: 'm' + Date.now(), name, style, bpm, mix: changes(), desk: deskWithoutLoops(), loops: loopsSnapshot(), master: { ...deskMaster }, created: Date.now() };
   mixes.unshift(m); mixes = mixes.slice(0, 40);
   openMix = m.id; storeMixes(); renderMixes();
 }
 function saveOpenMix() {
-  if (!openMix) return;
+  if (!openMix || loadingMix) return;
   clearTimeout(mixTimer);
   mixTimer = setTimeout(() => {
     const m = mixes.find((x) => x.id === openMix); if (!m) return;
-    m.mix = changes(); m.desk = JSON.parse(JSON.stringify(desk)); m.master = { ...deskMaster }; m.bpm = fixedBpm;
+    m.mix = changes(); m.desk = deskWithoutLoops(); m.loops = loopsSnapshot(); m.master = { ...deskMaster }; m.bpm = fixedBpm;
     storeMixes(); renderMixes();
   }, 400);
 }
-function openMixById(id, then) {
+async function openMixById(id, then) {
   const m = mixes.find((x) => x.id === id); if (!m) return;
   openMix = id; hideAb();
+  loadingMix = true;
   applyMix(cleanMix(m.mix || {}));
+  clearLoops();
   setDeskAll(m.desk, m.master);
+  let missing = 0;
+  for (const sl of m.loops || []) {
+    try {
+      const r = await fetch(sl.src); if (!r.ok) throw new Error();
+      const ok = await addLoopFile(new File([await r.blob()], 'loop.mp3'), { ...sl, quiet: true });
+      if (!ok) missing++;
+    } catch { missing++; }
+  }
+  loadingMix = false;
+  if (missing) setStatus(missing === 1 ? 'No pude volver a cargar 1 loop de Música libre (¿sin conexión?).' : 'No pude volver a cargar ' + missing + ' loops de Música libre (¿sin conexión?).', true);
+  renderLoops(); layout();
   fixedBpm = m.bpm || fixedBpm; $('bpm').value = fixedBpm;
   if (mode !== 'fixed') setMode('fixed');
   live(); fill(); draw(); frame(); changed(); renderMixes();
@@ -1245,10 +1274,10 @@ function renderMixes() {
       const when = new Date(m.created).toLocaleString('es', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
       row.innerHTML = '<div class="t"><strong></strong><span></span></div>';
       row.querySelector('strong').textContent = m.name + (m.id === openMix ? ' (abierta)' : '');
-      row.querySelector('span').textContent = [m.style, (m.bpm || '?') + ' BPM', when].filter(Boolean).join(' · ');
+      row.querySelector('span').textContent = [m.style, (m.bpm || '?') + ' BPM', (m.loops || []).length ? m.loops.length + (m.loops.length === 1 ? ' loop libre' : ' loops libres') : '', when].filter(Boolean).join(' · ');
       const acts = document.createElement('div'); acts.className = 'acts'; row.appendChild(acts);
       const mk = (label, fn) => { const b = document.createElement('button'); b.type = 'button'; b.textContent = label; b.addEventListener('click', fn); acts.appendChild(b); return b; };
-      mk('▶ Escuchar', async () => { stopPreview(); openMixById(m.id); if (!playing && engine) await start(); }).className = 'go';
+      mk('▶ Escuchar', async () => { stopPreview(); await openMixById(m.id); if (!playing && engine) await start(); }).className = 'go';
       if (boxId === 'mixListPista') mk('Editar', async () => { openMixById(m.id, 'mesa'); });
       const del = mk('Borrar', () => {
         if (del.dataset.sure) { mixes = mixes.filter((x) => x.id !== m.id); if (openMix === m.id) openMix = null; storeMixes(); renderMixes(); return; }
@@ -1479,6 +1508,7 @@ async function searchFree() {
           const m = String(x.title || '').match(/(\d{2,3})\s*bpm/i);
           ok = await addLoopFile(new File([blob], (x.title || 'loop') + '.mp3'), {
             name: x.title, bpm: m ? Number(m[1]) : null,
+            src: x.url,
             credit: { text: '«' + (x.title || '') + '» de ' + (x.creator || 'autor desconocido') + ' · ' + LIC[x.license], link: x.foreign_landing_url || x.url },
           });
         } catch {}
