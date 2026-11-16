@@ -220,6 +220,40 @@ ul.how b { color: var(--ink); font-weight: 600; }
 .freeitem button { min-height: 34px; padding: 0 12px; font-size: 12px; white-space: nowrap; }
 .freeitem button[aria-pressed="true"] { background: var(--lime); color: var(--on-lime); border-color: var(--lime); }
 .loopitem a.note { flex-basis: 100%; color: var(--lime); }
+.src-hero { display: grid; gap: 10px; padding: 22px; border: 1px solid #5d7240; border-radius: 16px;
+  background: radial-gradient(120% 140% at 0% 0%, #2a3a1a 0%, #1b2414 55%, #161d11 100%); }
+.src-hero h2 { font-size: 20px; }
+.src-hero p { margin: 0; color: var(--muted); max-width: 75ch; }
+.src-filters { display: flex; flex-wrap: wrap; gap: 6px; }
+.src-filters button { min-height: 34px; border-radius: 99px; font-size: 13px; }
+.src-filters button[aria-pressed="true"] { background: var(--lime); color: var(--on-lime); border-color: var(--lime); }
+.src-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 12px; }
+.src { display: grid; gap: 10px; align-content: start; padding: 16px; border: 1px solid var(--border); border-radius: 16px; background: var(--panel); }
+.src-top { display: flex; align-items: center; gap: 12px; }
+.src-ico { width: 44px; height: 44px; border-radius: 12px; display: grid; place-items: center; font: 700 18px var(--font-body); color: var(--on-lime); flex: none; }
+.src-top h3 { margin: 0; font-size: 17px; }
+.src-top small { color: var(--muted); font-size: 12px; }
+.src p { margin: 0; color: var(--muted); font-size: 13px; }
+.src .tags { display: flex; flex-wrap: wrap; gap: 5px; }
+.src .tags span { font-size: 11px; font-weight: 600; padding: 3px 8px; border-radius: 99px; background: #22281d; color: var(--ink); border: 1px solid var(--line); }
+.src dl { margin: 0; display: grid; grid-template-columns: auto 1fr; gap: 4px 10px; font-size: 12.5px; }
+.src dt { color: var(--muted); }
+.src dd { margin: 0; color: var(--ink); }
+.src dd.yes::before { content: '● '; color: var(--lime); }
+.src dd.mid::before { content: '● '; color: var(--warn); }
+.src dd.no::before { content: '● '; color: #e58a6f; }
+.src .tip { font-size: 12.5px; color: var(--ink); background: #141a0f; border-radius: 10px; padding: 8px 10px; border: 1px solid var(--line); }
+.src a.go { display: inline-flex; align-items: center; justify-content: center; min-height: 40px; border-radius: 10px; font-weight: 600; font-size: 13px; text-decoration: none; background: var(--lime); color: var(--on-lime); }
+.src-guide { display: grid; gap: 12px; padding: 18px; border: 1px solid var(--border); border-radius: 16px; background: var(--panel); }
+.src-guide h2 { font-size: 16px; }
+.lic-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 8px; }
+.lic { display: grid; gap: 3px; padding: 10px 12px; border-radius: 10px; border: 1px solid var(--line); background: #161c11; font-size: 12.5px; color: var(--muted); }
+.lic b { color: var(--ink); font-size: 13.5px; }
+.lic.ok { border-left: 4px solid var(--lime); }
+.lic.no { border-left: 4px solid #e58a6f; }
+.lic.warn { border-left: 4px solid var(--warn); }
+.tips { margin: 0; padding-left: 18px; display: grid; gap: 6px; color: var(--muted); font-size: 13px; }
+.tips b { color: var(--ink); }
 @media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
 </style>
 </head>
@@ -231,6 +265,7 @@ ul.how b { color: var(--ink); font-weight: 600; }
     <nav class="tabs" aria-label="Secciones">
       <a href="#pista" id="tabPista" aria-current="page">Pista</a>
       <a href="#mesa" id="tabMesa">Mesa mezcladora</a>
+      <a href="#fuentes" id="tabFuentes">Fuentes libres</a>
     </nav>
   </header>
   <div id="pagePista" class="page">
@@ -367,6 +402,38 @@ ul.how b { color: var(--ink); font-weight: 600; }
       <span>Doble clic en un control lo devuelve al centro.</span>
     </div>
     <div class="row"><button id="deskReset">Restablecer la mesa</button></div>
+  </div>
+
+  <div id="pageFuentes" class="page" hidden>
+    <section class="src-hero">
+      <h2>Música sin problemas de derechos de autor</h2>
+      <p>Sitios donde puedes bajar canciones, loops y efectos para usar en tus mezclas y en la app. Cada uno tiene sus reglas: mira la licencia, si pide que nombres al autor y si permite uso comercial.</p>
+      <div class="src-filters" role="group" aria-label="Filtrar">
+        <button type="button" data-f="all" aria-pressed="true">Todas</button>
+        <button type="button" data-f="loops" aria-pressed="false">Loops</button>
+        <button type="button" data-f="songs" aria-pressed="false">Canciones</button>
+        <button type="button" data-f="fx" aria-pressed="false">Efectos</button>
+        <button type="button" data-f="nocredit" aria-pressed="false">Sin crédito obligatorio</button>
+      </div>
+    </section>
+    <div id="srcGrid" class="src-grid"></div>
+    <section class="src-guide" aria-labelledby="licTitle">
+      <h2 id="licTitle">Guía rápida de licencias</h2>
+      <div class="lic-grid">
+        <div class="lic ok"><b>CC0 / Dominio público</b><span>Úsalo como quieras, sin nombrar al autor.</span></div>
+        <div class="lic ok"><b>CC BY</b><span>Libre, también comercial, pero debes nombrar al autor y la licencia.</span></div>
+        <div class="lic ok"><b>CC BY-SA</b><span>Como CC BY, y lo que crees con él debe compartirse con la misma licencia.</span></div>
+        <div class="lic no"><b>CC BY-NC</b><span>Prohíbe el uso comercial. Evítalo para la app.</span></div>
+        <div class="lic no"><b>CC BY-ND</b><span>Prohíbe modificarlo, así que no sirve para mezclar ni remezclar.</span></div>
+        <div class="lic warn"><b>Licencia propia del sitio</b><span>Pixabay, Uppbeat, YouTube: lee sus condiciones; suelen permitir uso en videos y proyectos, pero no revender la pista tal cual.</span></div>
+      </div>
+      <ul class="tips">
+        <li><b>Guarda la prueba:</b> el enlace de la pista y una captura de su licencia el día que la bajas. Las licencias pueden cambiar.</li>
+        <li><b>Nombra al autor</b> cuando la licencia lo pida, por ejemplo: «Título» de Autor, CC BY 4.0, enlace.</li>
+        <li><b>Música libre</b>, en la Mesa mezcladora, ya busca solo sonidos CC0, CC BY y CC BY-SA, y guarda el crédito de cada uno.</li>
+        <li>Esta guía es orientativa, no es asesoría legal. Ante la duda, revisa las condiciones de cada sitio.</li>
+      </ul>
+    </section>
   </div>
 </div>
 
@@ -1524,18 +1591,87 @@ async function searchFree() {
 }
 $('freeForm').addEventListener('submit', (e) => { e.preventDefault(); searchFree(); });
 
+// ---- Fuentes libres: where to get music without copyright trouble ----
+const SOURCES = [
+  { name: 'Pixabay Music', url: 'https://pixabay.com/music/', color: '#7ed6a5', kinds: ['songs', 'fx'],
+    what: 'Miles de canciones y efectos de sonido de muchos géneros, listos para descargar en MP3.',
+    license: 'Licencia de contenido de Pixabay', credit: ['yes', 'No'], commercial: ['yes', 'Sí'], account: 'No (sí para algunas descargas)',
+    tip: 'No se puede vender la pista sola tal cual. Algunas canciones tienen Content ID en YouTube: si te llega un reclamo, se aclara con la licencia.' },
+  { name: 'Freesound', url: 'https://freesound.org/search/?f=license:%22Creative+Commons+0%22', color: '#f2c46d', kinds: ['loops', 'fx'],
+    what: 'La mayor biblioteca de sonidos libres: loops, golpes de batería, instrumentos, ambientes y efectos.',
+    license: 'Cada sonido tiene la suya: CC0, CC BY o CC BY-NC', credit: ['mid', 'Solo en CC BY'], commercial: ['mid', 'Sí en CC0 y CC BY; no en NC'], account: 'Sí, gratis',
+    tip: 'Filtra por CC0 (el enlace ya lo hace) y no uses los CC BY-NC en la app. Ya está conectado en Música libre.' },
+  { name: 'Looperman', url: 'https://www.looperman.com/loops', color: '#ff8f6b', kinds: ['loops'],
+    what: 'Loops subidos por productores, ordenados por género, BPM y tonalidad. Ideal para armar pistas.',
+    license: 'Loops libres de regalías para tu propia música', credit: ['yes', 'No en loops'], commercial: ['yes', 'Sí, dentro de una canción tuya'], account: 'Sí, gratis',
+    tip: 'No puedes revender los loops sueltos. Las voces (acapellas) tienen otras reglas: ahí sí se pide permiso o crédito.' },
+  { name: 'Free Music Archive', url: 'https://freemusicarchive.org/', color: '#8fb8ff', kinds: ['songs'],
+    what: 'Canciones completas de artistas independientes, con licencias Creative Commons.',
+    license: 'Variable por canción: CC0, CC BY, CC BY-SA, NC, ND…', credit: ['mid', 'Sí, salvo CC0'], commercial: ['mid', 'Depende de la canción'], account: 'Sí, para descargar',
+    tip: 'Elige solo CC0, CC BY o CC BY-SA. Evita las que dicen NC (no comercial) o ND (sin modificar).' },
+  { name: 'Incompetech', url: 'https://incompetech.com/music/royalty-free/music.html', color: '#c79bff', kinds: ['songs'],
+    what: 'Más de 2.000 temas de Kevin MacLeod, buscables por género y sensación. Muy usados en videos.',
+    license: 'CC BY 4.0', credit: ['mid', 'Sí, siempre'], commercial: ['yes', 'Sí'], account: 'No',
+    tip: 'Copia el crédito que da cada tema. Si no quieres poner crédito, el sitio vende una licencia que lo evita.' },
+  { name: 'YouTube Audio Library', url: 'https://studio.youtube.com/channel/UC/music', color: '#ff6b6b', kinds: ['songs', 'fx'],
+    what: 'Música y efectos gratis de YouTube, dentro de YouTube Studio.',
+    license: 'Licencia propia de YouTube', credit: ['mid', 'Algunas pistas sí'], commercial: ['mid', 'Pensada para videos, también monetizados'], account: 'Sí, cuenta de YouTube',
+    tip: 'Fíjate en el ícono de atribución: si la pista lo tiene, copia el texto de crédito en tu proyecto.' },
+  { name: 'Uppbeat', url: 'https://uppbeat.io/', color: '#5fe0e0', kinds: ['songs', 'fx'],
+    what: 'Música de productores pensada para creadores de contenido, con buena calidad de producción.',
+    license: 'Licencia propia de Uppbeat', credit: ['mid', 'Sí en el plan gratis'], commercial: ['mid', 'Sí, para tu contenido'], account: 'Sí, gratis (con límite de descargas al mes)',
+    tip: 'En el plan gratis tienes un número limitado de descargas al mes y debes poner el crédito que te da cada pista.' },
+  { name: 'Openverse', url: 'https://openverse.org/search/audio?license_type=commercial,modification', color: '#d0ef89', kinds: ['loops', 'songs', 'fx'],
+    what: 'Buscador de Creative Commons que reúne Freesound, Jamendo, Wikimedia y más en un solo lugar.',
+    license: 'La de cada obra (el enlace ya filtra comercial + modificable)', credit: ['mid', 'Según la licencia'], commercial: ['yes', 'Sí, con el filtro'], account: 'No',
+    tip: 'Es la fuente que usa Música libre dentro de esta app: ahí puedes buscar y agregar sin salir del Mezclador.' },
+];
+let srcFilter = 'all';
+function renderSources() {
+  const grid = $('srcGrid'); grid.innerHTML = '';
+  for (const x of SOURCES) {
+    if (srcFilter === 'nocredit' ? x.credit[0] !== 'yes' : srcFilter !== 'all' && !x.kinds.includes(srcFilter)) continue;
+    const c = document.createElement('article'); c.className = 'src';
+    const kindName = { loops: 'Loops', songs: 'Canciones', fx: 'Efectos' };
+    c.innerHTML = '<div class="src-top"><div class="src-ico"></div><div><h3></h3><small></small></div></div><p class="what"></p><div class="tags"></div>' +
+      '<dl><dt>Licencia</dt><dd class="lic-v"></dd><dt>Nombrar al autor</dt><dd class="cr"></dd><dt>Uso comercial</dt><dd class="co"></dd><dt>Cuenta</dt><dd class="ac"></dd></dl>' +
+      '<p class="tip"></p><a class="go" target="_blank" rel="noopener">Abrir sitio ↗</a>';
+    const ico = c.querySelector('.src-ico'); ico.textContent = x.name[0]; ico.style.background = x.color;
+    c.querySelector('h3').textContent = x.name;
+    c.querySelector('small').textContent = new URL(x.url).hostname.replace(/^www\./, '');
+    c.querySelector('.what').textContent = x.what;
+    for (const k of x.kinds) { const t = document.createElement('span'); t.textContent = kindName[k]; c.querySelector('.tags').appendChild(t); }
+    c.querySelector('.lic-v').textContent = x.license;
+    const cr = c.querySelector('.cr'); cr.className = 'cr ' + (x.credit[0] === 'yes' ? 'yes' : 'mid'); cr.textContent = x.credit[1];
+    const co = c.querySelector('.co'); co.className = 'co ' + x.commercial[0]; co.textContent = x.commercial[1];
+    c.querySelector('.ac').textContent = x.account;
+    c.querySelector('.tip').textContent = x.tip;
+    c.querySelector('a.go').href = x.url;
+    grid.appendChild(c);
+  }
+}
+for (const b of document.querySelectorAll('.src-filters button')) b.addEventListener('click', () => {
+  srcFilter = b.dataset.f;
+  for (const o of document.querySelectorAll('.src-filters button')) o.setAttribute('aria-pressed', String(o === b));
+  renderSources();
+});
+renderSources();
+
 // ---- Sub-pages: #pista and #mesa. The transport (Play, BPM) goes with the one shown. ----
 // Tabs work by click (not only by the #hash), so they also work inside previews
 // that don't pass link clicks through.
-let pageNow = location.hash === '#mesa' ? 'mesa' : 'pista';
+const PAGES = { pista: ['pagePista', 'tabPista'], mesa: ['pageMesa', 'tabMesa'], fuentes: ['pageFuentes', 'tabFuentes'] };
+const pageFromHash = () => (PAGES[location.hash.slice(1)] ? location.hash.slice(1) : 'pista');
+let pageNow = pageFromHash();
 function showPage() {
-  const mesa = pageNow === 'mesa';
-  $('pagePista').hidden = mesa; $('pageMesa').hidden = !mesa;
-  $('tabPista').toggleAttribute('aria-current', !mesa); $('tabMesa').toggleAttribute('aria-current', mesa);
-  if (mesa) { $('tabMesa').setAttribute('aria-current', 'page'); $('transportSlot').appendChild($('transport')); buildDesk(); requestAnimationFrame(meters); }
-  else { $('tabPista').setAttribute('aria-current', 'page'); $('pistaTop').after($('transport')); layout(); draw(); }
+  for (const [name, [page, tab]] of Object.entries(PAGES)) {
+    $(page).hidden = name !== pageNow;
+    if (name === pageNow) $(tab).setAttribute('aria-current', 'page'); else $(tab).removeAttribute('aria-current');
+  }
+  if (pageNow === 'mesa') { $('transportSlot').appendChild($('transport')); buildDesk(); requestAnimationFrame(meters); }
+  else if (pageNow === 'pista') { $('pistaTop').after($('transport')); layout(); draw(); }
 }
-for (const [tab, name] of [['tabPista', 'pista'], ['tabMesa', 'mesa']]) {
+for (const [name, [, tab]] of Object.entries(PAGES)) {
   $(tab).addEventListener('click', (e) => {
     e.preventDefault();
     pageNow = name; showPage();
@@ -1543,7 +1679,7 @@ for (const [tab, name] of [['tabPista', 'pista'], ['tabMesa', 'mesa']]) {
   });
 }
 $('adv').addEventListener('toggle', () => { if ($('adv').open) { layout(); draw(); } });
-window.addEventListener('hashchange', () => { pageNow = location.hash === '#mesa' ? 'mesa' : 'pista'; showPage(); });
+window.addEventListener('hashchange', () => { pageNow = pageFromHash(); showPage(); });
 
 // ---- Start-up ----
 window.addEventListener('resize', () => { layout(); draw(); });
