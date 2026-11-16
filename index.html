@@ -177,6 +177,34 @@ ul.how b { color: var(--ink); font-weight: 600; }
 .mixitem .t strong { font-weight: 600; overflow-wrap: anywhere; }
 .mixitem .t span { color: var(--muted); font-size: 12px; }
 .mixitem button { min-height: 32px; padding: 0 10px; font-size: 12px; }
+/* ---- Simpler look for the Pista ---- */
+#pistaTop .ai { max-width: none; margin-top: 4px; padding: 22px; gap: 12px; border-radius: 16px; border-color: #5d7240;
+  background: radial-gradient(120% 140% at 0% 0%, #2a3a1a 0%, #1b2414 55%, #161d11 100%); }
+.ai .hero-q { font-size: 20px; font-weight: 700; color: var(--ink); letter-spacing: -0.2px; }
+#pistaTop .ai input[type=text] { min-height: 54px; font-size: 17px; border-radius: 12px; padding: 10px 16px; }
+#pistaTop .ai .row button { min-height: 54px; font-size: 15px; border-radius: 12px; padding: 0 22px; white-space: nowrap; }
+.mixitem .acts button { white-space: nowrap; }
+#transport { border-radius: 16px; padding: 14px 16px; }
+#play { min-height: 48px; min-width: 130px; font-size: 15px; border-radius: 99px; }
+.mixes { padding: 16px; border: 1px solid var(--border); border-radius: 16px; background: var(--panel); }
+.mixes h2 { font-size: 16px; }
+.mixlist { grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 10px; }
+.mixitem { flex-direction: column; align-items: stretch; gap: 8px; padding: 12px; border-radius: 12px; }
+.mixitem .t { flex: none; }
+.mixitem .t strong { font-size: 15px; }
+.mixitem > button { width: 100%; }
+.mixitem .acts { display: flex; gap: 6px; }
+.mixitem .acts button { flex: 1; min-height: 34px; padding: 0 8px; font-size: 12px; }
+.mixitem .acts button.go { background: var(--lime); color: var(--on-lime); border-color: var(--lime); }
+.mixlist > p { grid-column: 1 / -1; }
+.adv { border: 1px solid var(--border); border-radius: 16px; background: #151a11; }
+.adv > summary { list-style: none; display: grid; gap: 2px; padding: 14px 18px; cursor: pointer; }
+.adv > summary::-webkit-details-marker { display: none; }
+.adv > summary span { font-size: 15px; font-weight: 600; }
+.adv > summary span::before { content: '▸ '; color: var(--lime); }
+.adv[open] > summary span::before { content: '▾ '; }
+.adv > summary small { color: var(--muted); font-size: 12.5px; font-weight: 400; }
+.adv-body { display: grid; gap: 18px; padding: 0 14px 16px; }
 @media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
 </style>
 </head>
@@ -192,9 +220,8 @@ ul.how b { color: var(--ink); font-weight: 600; }
   </header>
   <div id="pagePista" class="page">
   <div id="pistaTop">
-    <p class="sub">Cada fila es un instrumento de la música adaptativa. La parte verde es el rango de BPM en el que suena: arrastra sus bordes para que entre antes o después, o para que dure más o menos. Pulsa Play para oírlo con el mismo motor que la app, y <b>Guardar</b> para conservar la mezcla en este navegador y descargarla como <code>mix.json</code>.</p>
     <form id="ai" class="ai" autocomplete="off">
-      <label for="aiText">¿Qué quiere escuchar el oyente?</label>
+      <label for="aiText" class="hero-q">¿Qué quieres escuchar?</label>
       <div class="row">
         <input id="aiText" type="text" maxlength="300" placeholder="Un artista (p. ej. Gepe), una canción, un género o un link de YouTube">
         <button id="aiGo" class="primary" type="submit" disabled>Crear música</button>
@@ -203,10 +230,6 @@ ul.how b { color: var(--ink); font-weight: 600; }
       <div id="ab" class="ab" hidden><span class="note">Compara:</span><button type="button" id="abBefore" aria-pressed="false">Antes</button><button type="button" id="abAfter" aria-pressed="true">Después (la nueva)</button></div>
       <p id="aiResult" class="result" role="status">Una IA (Claude) crea una mezcla original con los sonidos del kit, inspirada en lo que le gusta. No copia ni descarga la canción: de un link de YouTube solo lee el título.</p>
     </form>
-    <section class="mixes" aria-labelledby="mixesTitle" style="margin-top:12px; max-width: 820px">
-      <h2 id="mixesTitle">Mis mezclas</h2>
-      <div id="mixListPista" class="mixlist"></div>
-    </section>
   </div>
 
   <section id="transport" class="transport" aria-label="Reproducción">
@@ -223,6 +246,15 @@ ul.how b { color: var(--ink); font-weight: 600; }
     <span id="status" class="status" role="status">Conectando…</span>
   </section>
 
+    <section class="mixes" aria-labelledby="mixesTitle">
+      <h2 id="mixesTitle">Mis mezclas</h2>
+      <div id="mixListPista" class="mixlist"></div>
+    </section>
+
+  <details id="adv" class="adv">
+  <summary><span>Editor avanzado</span><small>Instrumentos por BPM, ajustes finos, tus loops y archivos</small></summary>
+  <div class="adv-body">
+  <p class="note">Cada fila es un instrumento. La parte verde es el rango de BPM en el que suena: arrastra sus bordes para que entre antes o después.</p>
   <div class="map">
     <canvas id="grid" tabindex="0" aria-label="Mapa de instrumentos por BPM. Usa los campos de abajo para cambiar los valores con el teclado."></canvas>
   </div>
@@ -273,12 +305,7 @@ ul.how b { color: var(--ink); font-weight: 600; }
 
   <section class="panel" aria-labelledby="saveTitle">
     <h2 id="saveTitle">Guardar</h2>
-    <ul class="how">
-      <li><b>Guardar</b> conserva tu mezcla en este navegador (sigue ahí la próxima vez que abras la página) y descarga <code>mix.json</code> con tus rangos y volúmenes. Súbelo a GitHub para compartir la mezcla.</li>
-      <li><b>Abrir mix.json</b> carga una mezcla que ya tengas guardada en un archivo.</li>
-      <li>Para llevar la mezcla a RadioRun, pasa ese <code>mix.json</code> al proyecto de la app (o a Claude, que lo aplica).</li>
-      <li><b>Restablecer todo</b> vuelve a los valores de <code>song.json</code>. Se aplica al guardar.</li>
-    </ul>
+    <p class="note"><b>Guardar</b> conserva la mezcla en este navegador y descarga <code>mix.json</code> para llevarla a la app.</p>
     <div class="row">
       <button id="save" class="primary" disabled>Guardar</button>
       <button id="open">Abrir mix.json</button>
@@ -292,6 +319,8 @@ ul.how b { color: var(--ink); font-weight: 600; }
       <textarea id="export" readonly aria-label="Cambios en formato JSON"></textarea>
     </details>
   </section>
+  </div>
+  </details>
   </div>
 
   <div id="pageMesa" class="page" hidden>
@@ -1183,9 +1212,10 @@ function renderMixes() {
       row.innerHTML = '<div class="t"><strong></strong><span></span></div>';
       row.querySelector('strong').textContent = m.name + (m.id === openMix ? ' (abierta)' : '');
       row.querySelector('span').textContent = [m.style, (m.bpm || '?') + ' BPM', when].filter(Boolean).join(' · ');
-      const mk = (label, fn) => { const b = document.createElement('button'); b.type = 'button'; b.textContent = label; b.addEventListener('click', fn); row.appendChild(b); return b; };
-      mk('▶ Escuchar', async () => { stopPreview(); openMixById(m.id); if (!playing && engine) await start(); });
-      if (boxId === 'mixListPista') mk('Editar en la mesa', async () => { openMixById(m.id, 'mesa'); });
+      const acts = document.createElement('div'); acts.className = 'acts'; row.appendChild(acts);
+      const mk = (label, fn) => { const b = document.createElement('button'); b.type = 'button'; b.textContent = label; b.addEventListener('click', fn); acts.appendChild(b); return b; };
+      mk('▶ Escuchar', async () => { stopPreview(); openMixById(m.id); if (!playing && engine) await start(); }).className = 'go';
+      if (boxId === 'mixListPista') mk('Editar', async () => { openMixById(m.id, 'mesa'); });
       const del = mk('Borrar', () => {
         if (del.dataset.sure) { mixes = mixes.filter((x) => x.id !== m.id); if (openMix === m.id) openMix = null; storeMixes(); renderMixes(); return; }
         del.dataset.sure = '1'; del.textContent = '¿Seguro?'; setTimeout(() => { if (del.isConnected) { delete del.dataset.sure; del.textContent = 'Borrar'; } }, 3000);
@@ -1256,7 +1286,7 @@ async function createMusic(text) {
   $('ab').hidden = false; $('abBefore').setAttribute('aria-pressed', 'false'); $('abAfter').setAttribute('aria-pressed', 'true');
   flashMap();
   $('aiResult').innerHTML = esc(source) + '<b>' + esc(r.label) + ' · ' + r.bpm + ' BPM</b> con ' + esc(r.instruments.map(nameOf).join(', ')) + '. ' +
-    esc(note) + (keyNote ? 'Tono ' + (keyNote > 0 ? '+' : '') + keyNote + '. ' : '') + 'Ya suena y quedó en <b>Mis mezclas</b>. Usa <b>Antes / Después</b> para oír el cambio, o ábrela en la Mesa mezcladora.';
+    esc(note) + (keyNote ? 'Tono ' + (keyNote > 0 ? '+' : '') + keyNote + '. ' : '') + 'Quedó en <b>Mis mezclas</b>.';
   $('aiGo').disabled = false; $('aiGo').textContent = 'Crear música';
   if (!playing && engine) await start();
 }
@@ -1381,6 +1411,7 @@ for (const [tab, name] of [['tabPista', 'pista'], ['tabMesa', 'mesa']]) {
     try { history.replaceState(null, '', '#' + name); } catch {}
   });
 }
+$('adv').addEventListener('toggle', () => { if ($('adv').open) { layout(); draw(); } });
 window.addEventListener('hashchange', () => { pageNow = location.hash === '#mesa' ? 'mesa' : 'pista'; showPage(); });
 
 // ---- Start-up ----
