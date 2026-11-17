@@ -213,6 +213,11 @@ ul.how b { color: var(--ink); font-weight: 600; }
 .rt-saved h3 { font-size: 14px; margin: 0; }
 .mixitem.simple { grid-template-columns: minmax(0, 1.4fr) minmax(0, 2fr) auto; }
 .pub { margin-top: 12px; }
+.repo-key { margin-top: 12px; }
+.repo-row { display: flex; flex-wrap: wrap; gap: 8px 12px; align-items: center; }
+.repo-row input[type=password] { flex: 1 1 200px; max-width: 280px; min-height: 36px; background: #11160d; color: var(--ink); border: 1px solid var(--line); border-radius: 8px; padding: 0 10px; font: inherit; }
+.repo-row button.go, .mixitem .acts button.go { background: var(--lime); color: var(--on-lime); border-color: var(--lime); }
+.mixes h2 .mini { margin-left: 8px; min-height: 26px; padding: 0 8px; font-size: 11px; vertical-align: middle; }
 @media (max-width: 720px) { .mixitem.simple { grid-template-columns: minmax(0, 1fr); } .mixitem.simple .c { display: block; } }
 .routine { flex: 1 1 100%; display: grid; gap: 8px; padding: 12px; border: 1px solid var(--line); border-radius: 12px; background: #141a10; }
 .rt-head { display: flex; flex-wrap: wrap; gap: 4px 12px; align-items: baseline; }
@@ -360,7 +365,7 @@ ul.how b { color: var(--ink); font-weight: 600; }
     <nav class="tabs" aria-label="Secciones">
       <a href="#crear" id="tabPista" aria-current="page">1 · Crear música</a>
       <a href="#listas" id="tabMesa">2 · Mis listas</a>
-      <a href="#publicar" id="tabPub">3 · Temas a publicar</a>
+      <a href="#repositorio" id="tabPub">3 · Repositorio</a>
     </nav>
   </header>
   <div id="pagePista" class="page">
@@ -561,7 +566,16 @@ ul.how b { color: var(--ink); font-weight: 600; }
   </details>
   </div>
   <div id="pagePub" class="page" hidden>
-    <p class="sub">Lo que marcas para subir después a la app <b>RadioRun</b>. Agrega temas desde <b>Mis listas</b> (botón "Publicar") y rutinas desde <b>Rutinas de entrenamiento</b>.</p>
+    <p class="sub">Aquí llegan las músicas y rutinas que ya están listas (botón <b>→ Repositorio</b> en Mis listas y en Mis rutinas). Con <b>Exportar</b> se guardan en la base de datos que lee la app <b>RadioRun</b>.</p>
+    <section class="mixes repo-key" aria-label="Clave de exportación">
+      <div class="repo-row">
+        <label for="repoKey"><b>Clave de exportación</b></label>
+        <input id="repoKey" type="password" autocomplete="off" placeholder="Escribe la clave" maxlength="120">
+        <label class="chk"><input id="repoRemember" type="checkbox"> Recordar en este navegador</label>
+        <button id="repoAll" type="button" class="go">Exportar todo</button>
+      </div>
+      <span id="repoNote" class="note" role="status"></span>
+    </section>
     <div id="pubSlot"></div>
     <section class="mixes pub" aria-label="Rutinas a publicar">
       <h2>Rutinas</h2>
@@ -570,6 +584,10 @@ ul.how b { color: var(--ink); font-weight: 600; }
     <section class="mixes pub" aria-label="Canciones libres a publicar">
       <h2>Canciones libres</h2>
       <div id="pubCanciones" class="mixlist"></div>
+    </section>
+    <section class="mixes pub" aria-label="Ya en la base de datos">
+      <h2>Ya en la base de datos de RadioRun <button id="repoRefresh" type="button" class="mini">Actualizar</button></h2>
+      <div id="repoDb" class="mixlist"></div>
     </section>
   </div>
 </div>
@@ -1121,7 +1139,7 @@ function routineNow() {
   if (i !== rtShown) { rtShown = i; [...$('rtList').children].forEach((li, k) => li.classList.toggle('now', k === i)); }
   $('rtNow').textContent = r && !r.done ? 'Tramo ' + (i + 1) + ' de ' + routine.length + ' · quedan ' + fmtT(r.left) + ' · total ' + fmtT(rtTotalSec() - Math.max(0, ctx.currentTime - journeyStart)) : 'Pulsa "Probar rutina" para escucharla.';
 }
-// ---- Saved routines and "Temas a publicar" ----
+// ---- Saved routines and the Repositorio ----
 let routines = [], rtEditId = null;
 try { const r = JSON.parse(localStorage.getItem('mezcladorrr.rutinas')); if (Array.isArray(r)) routines = r; } catch (e) {}
 const storeRoutines = () => { try { localStorage.setItem('mezcladorrr.rutinas', JSON.stringify(routines)); } catch (e) {} };
@@ -1153,7 +1171,7 @@ $('rtSave').addEventListener('click', () => {
   $('rtSave').textContent = '✓ Guardada'; setTimeout(() => { $('rtSave').textContent = 'Guardar rutina'; }, 1500);
 });
 function mkBtn(box, label, fn, cls) { const b = document.createElement('button'); b.type = 'button'; b.textContent = label; if (cls) b.className = cls; b.addEventListener('click', fn); box.appendChild(b); return b; }
-function confirmDel(b, fn) { if (b.dataset.sure) return fn(); b.dataset.sure = '1'; b.textContent = '¿Seguro?'; setTimeout(() => { if (b.isConnected) { delete b.dataset.sure; b.textContent = 'Borrar'; } }, 3000); }
+function confirmDel(b, fn) { if (b.dataset.sure) return fn(); const orig = b.textContent; b.dataset.sure = '1'; b.textContent = '¿Seguro?'; setTimeout(() => { if (b.isConnected) { delete b.dataset.sure; b.textContent = orig; } }, 3000); }
 function listRow(name, meta, extra) {
   const row = document.createElement('div'); row.className = 'mixitem simple';
   const nm = document.createElement('div'); nm.className = 'nm'; nm.textContent = name; row.appendChild(nm);
@@ -1171,7 +1189,7 @@ function renderRoutines() {
     const [row, acts] = listRow(r.name, r.segs.length + (r.segs.length === 1 ? ' tramo' : ' tramos') + ' · ' + segsText(r.segs) + ' · ' + segsTime(r.segs), r.id === rtEditId && !$('routine').hidden ? 'editando' : '');
     mkBtn(acts, '▶ Probar', async () => { openRoutineEditor(r); setMode('routine'); await start(); $('rtPlay').textContent = '■ Parar rutina'; renderRoutines(); }, 'go');
     mkBtn(acts, 'Editar', () => { openRoutineEditor(r); renderRoutines(); $('routine').scrollIntoView({ block: 'nearest' }); });
-    mkBtn(acts, r.publish ? '✓ En publicar' : 'Publicar', () => { r.publish = !r.publish; storeRoutines(); renderRoutines(); });
+    mkBtn(acts, r.publish ? '✓ En repositorio' : '→ Repositorio', () => { r.publish = !r.publish; storeRoutines(); renderRoutines(); });
     const del = mkBtn(acts, 'Borrar', () => confirmDel(del, () => { routines = routines.filter((x) => x !== r); if (rtEditId === r.id) closeRoutineEditor(); storeRoutines(); renderRoutines(); }));
     list.appendChild(row);
   }
@@ -1179,10 +1197,11 @@ function renderRoutines() {
 function renderPub() {
   const rb = $('pubRutinas'), cb = $('pubCanciones'); rb.innerHTML = ''; cb.innerHTML = '';
   const rs = routines.filter((r) => r.publish), ms = mixes.filter((m) => m.publish);
-  if (!rs.length) rb.innerHTML = '<p class="note">Todavía no hay rutinas para publicar. En <b>Rutinas de entrenamiento</b> pulsa <b>Publicar</b> en una rutina guardada.</p>';
-  if (!ms.length) cb.innerHTML = '<p class="note">Todavía no hay canciones para publicar. En <b>2 · Mis listas</b> pulsa <b>Publicar</b> en una música.</p>';
+  if (!rs.length) rb.innerHTML = '<p class="note">Todavía no hay rutinas aquí. En <b>Mis rutinas</b> pulsa <b>→ Repositorio</b> en una rutina lista.</p>';
+  if (!ms.length) cb.innerHTML = '<p class="note">Todavía no hay canciones aquí. En <b>2 · Mis listas</b> pulsa <b>→ Repositorio</b> en una música lista.</p>';
   for (const r of rs) {
-    const [row, acts] = listRow(r.name, segsText(r.segs) + ' · ' + segsTime(r.segs));
+    const [row, acts] = listRow(r.name, segsText(r.segs) + ' · ' + segsTime(r.segs), expLabel(r));
+    mkBtn(acts, r.exportedAt ? 'Exportar de nuevo' : 'Exportar', (e) => exportOne('rutina', r, e.currentTarget));
     mkBtn(acts, '▶ Probar', async () => { openRoutineEditor(r); setMode('routine'); await start(); $('rtPlay').textContent = '■ Parar rutina'; }, 'go');
     mkBtn(acts, 'Quitar', () => { r.publish = false; storeRoutines(); renderRoutines(); renderPub(); });
     rb.appendChild(row);
@@ -1190,11 +1209,74 @@ function renderPub() {
   for (const m of ms) {
     const nT = (m.loops || []).length;
     const [row, acts] = listRow(m.name, [m.style, (m.bpm || '?') + ' BPM', nT ? nT + (nT === 1 ? ' tema' : ' temas') : '', (m.loops || []).map((l) => l.name).filter(Boolean).join(', ')].filter(Boolean).join(' · '));
+    row.querySelector('.nm').appendChild(Object.assign(document.createElement('em'), { textContent: expLabel(m) }));
     mkBtn(acts, '▶ Escuchar', async () => { stopPreview(); await openMixById(m.id); if (!playing && engine) await start(); }, 'go');
+    mkBtn(acts, m.exportedAt ? 'Exportar de nuevo' : 'Exportar', (e) => exportOne('cancion', m, e.currentTarget));
     mkBtn(acts, 'Quitar', () => { m.publish = false; storeMixes(); renderMixes(); renderPub(); });
     cb.appendChild(row);
   }
 }
+const REPO_API = 'https://kjakeluquwhmdvpesroj.supabase.co/functions/v1/repositorio';
+const expLabel = (x) => x.exportedAt ? '✓ exportado ' + new Date(x.exportedAt).toLocaleString('es', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }) : '';
+try { if (localStorage.getItem('mezcladorrr.clave')) { $('repoKey').value = localStorage.getItem('mezcladorrr.clave'); $('repoRemember').checked = true; } } catch (e) {}
+function keyNow() {
+  const k = $('repoKey').value.trim();
+  try { if ($('repoRemember').checked && k) localStorage.setItem('mezcladorrr.clave', k); else localStorage.removeItem('mezcladorrr.clave'); } catch (e) {}
+  return k;
+}
+$('repoRemember').addEventListener('change', keyNow);
+function repoItem(tipo, x) {
+  if (tipo === 'rutina') return { tipo, id: x.id, nombre: x.name, bpm: x.segs[0]?.from, duracion_seg: x.segs.reduce((a, s) => a + Math.max(0, +s.min || 0) * 60, 0), datos: { version: 1, tramos: x.segs } };
+  const loopsOut = (x.loops || []).map((l) => ({ nombre: l.name, url: l.src, credito: l.credit || null, beats: l.beats, ajustes: l.settings || null, mesa: l.desk || null }));
+  return { tipo, id: x.id, nombre: x.name, estilo: x.style, bpm: x.bpm,
+    datos: { version: 1, nombre: x.name, estilo: x.style, bpm: x.bpm, instrumentos: x.instruments || null, mezcla: x.mix || {}, mesa: x.desk || {}, master: x.master || null, temas: loopsOut, rutina: x.routine || null },
+    creditos: loopsOut.filter((l) => l.credito).map((l) => ({ tema: l.nombre, credito: l.credito, url: l.url })) };
+}
+async function exportOne(tipo, x, btn, quiet) {
+  const clave = keyNow();
+  if (!clave) { $('repoNote').textContent = 'Escribe la clave de exportación primero.'; $('repoKey').focus(); return false; }
+  if (btn) { btn.disabled = true; btn.textContent = 'Exportando…'; }
+  try {
+    const r = await fetch(REPO_API, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ clave, item: repoItem(tipo, x) }) });
+    const d = await r.json().catch(() => ({}));
+    if (!r.ok) throw new Error(d.error || 'No se pudo exportar');
+    x.exportedAt = Date.now(); tipo === 'rutina' ? storeRoutines() : storeMixes();
+    if (!quiet) { $('repoNote').textContent = '✓ "' + x.name + '" quedó en la base de datos de RadioRun.'; renderPub(); loadRepoDb(); }
+    return true;
+  } catch (e) {
+    $('repoNote').textContent = 'No se pudo exportar "' + x.name + '": ' + e.message + '.';
+    if (btn) { btn.disabled = false; btn.textContent = 'Exportar'; }
+    return false;
+  }
+}
+$('repoAll').addEventListener('click', async () => {
+  const items = [...routines.filter((r) => r.publish).map((r) => ['rutina', r]), ...mixes.filter((m) => m.publish).map((m) => ['cancion', m])];
+  if (!items.length) { $('repoNote').textContent = 'No hay nada en el repositorio todavía.'; return; }
+  let ok = 0;
+  for (const [t, x] of items) { $('repoNote').textContent = 'Exportando ' + (ok + 1) + ' de ' + items.length + '…'; if (await exportOne(t, x, null, true)) ok++; else break; }
+  if (ok === items.length) $('repoNote').textContent = '✓ Exportados ' + ok + ' de ' + items.length + ' a la base de datos de RadioRun.';
+  renderPub(); loadRepoDb();
+});
+async function loadRepoDb() {
+  const box = $('repoDb'); box.innerHTML = '<p class="note">Cargando…</p>';
+  try {
+    const r = await fetch(REPO_API); if (!r.ok) throw new Error();
+    const rows = await r.json(); box.innerHTML = '';
+    if (!rows.length) { box.innerHTML = '<p class="note">La base de datos está vacía. Exporta algo de arriba.</p>'; return; }
+    for (const x of rows) {
+      const [row, acts] = listRow((x.tipo === 'rutina' ? '⏱ ' : '🎵 ') + x.nombre, [x.tipo === 'rutina' ? 'Rutina' : 'Canción', x.estilo, x.bpm ? x.bpm + ' BPM' : '', x.duracion_seg ? fmtT(x.duracion_seg) : '', 'exportado ' + new Date(x.exportado_at).toLocaleString('es', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })].filter(Boolean).join(' · '));
+      const del = mkBtn(acts, 'Borrar de la base', () => confirmDel(del, async () => {
+        const clave = keyNow(); if (!clave) { $('repoNote').textContent = 'Escribe la clave de exportación primero.'; return; }
+        const rr = await fetch(REPO_API, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ clave, borrar: x.id }) });
+        const d = await rr.json().catch(() => ({}));
+        $('repoNote').textContent = rr.ok ? '✓ "' + x.nombre + '" se borró de la base de datos.' : 'No se pudo borrar: ' + (d.error || 'error') + '.';
+        loadRepoDb();
+      }));
+      box.appendChild(row);
+    }
+  } catch (e) { box.innerHTML = '<p class="note">No pude leer la base de datos (¿sin conexión?).</p>'; }
+}
+$('repoRefresh').addEventListener('click', loadRepoDb);
 $('bpm').addEventListener('input', (e) => { fixedBpm = Number(e.target.value); frame(); saveOpenMix(); });
 function stepBpm(d) {
   if (mode !== 'fixed') setMode('fixed');
@@ -1678,7 +1760,7 @@ function renderMixes() {
       const mk = (label, fn) => { const b = document.createElement('button'); b.type = 'button'; b.textContent = label; b.addEventListener('click', fn); acts.appendChild(b); return b; };
       mk('▶ Escuchar', async () => { stopPreview(); await openMixById(m.id); if (!playing && engine) await start(); }).className = 'go';
       mk(m.id === openMix ? '✓ Abierta' : 'Modificar', async () => { stopPreview(); await openMixById(m.id, 'mesa'); });
-      mk(m.publish ? '✓ En publicar' : 'Publicar', () => { m.publish = !m.publish; storeMixes(); renderMixes(); });
+      mk(m.publish ? '✓ En repositorio' : '→ Repositorio', () => { m.publish = !m.publish; storeMixes(); renderMixes(); });
       const del = mk('Borrar', () => {
         if (del.dataset.sure) { mixes = mixes.filter((x) => x.id !== m.id); if (openMix === m.id) openMix = null; storeMixes(); renderMixes(); return; }
         del.dataset.sure = '1'; del.textContent = '¿Seguro?'; setTimeout(() => { if (del.isConnected) { delete del.dataset.sure; del.textContent = 'Borrar'; } }, 3000);
@@ -2141,8 +2223,8 @@ async function incOpen() {
 // Two pages: 1 · Crear música (#crear) and 2 · Mis listas (#listas), where a
 // saved music is edited in the Mesa mezcladora and the Editor secuencial.
 const PAGES = { pista: ['pagePista', 'tabPista'], mesa: ['pageMesa', 'tabMesa'], pub: ['pagePub', 'tabPub'] };
-const HASH = { pista: 'crear', mesa: 'listas', pub: 'publicar' };
-const pageFromHash = () => ({ listas: 'mesa', mesa: 'mesa', publicar: 'pub' }[location.hash.slice(1)] || 'pista');
+const HASH = { pista: 'crear', mesa: 'listas', pub: 'repositorio' };
+const pageFromHash = () => ({ listas: 'mesa', mesa: 'mesa', publicar: 'pub', repositorio: 'pub' }[location.hash.slice(1)] || 'pista');
 let pageNow = pageFromHash();
 function showPage() {
   for (const [name, [page, tab]] of Object.entries(PAGES)) {
@@ -2150,7 +2232,7 @@ function showPage() {
     if (name === pageNow) $(tab).setAttribute('aria-current', 'page'); else $(tab).removeAttribute('aria-current');
   }
   if (pageNow === 'mesa') { $('transportSlot').appendChild($('transport')); $('transport').after($('routineBox')); layout(); draw(); buildDesk(); requestAnimationFrame(meters); }
-  else if (pageNow === 'pub') { $('pubSlot').appendChild($('transport')); renderPub(); }
+  else if (pageNow === 'pub') { $('pubSlot').appendChild($('transport')); renderPub(); loadRepoDb(); }
   else { $('saveBar').before($('transport')); $('transport').after($('routineBox')); if (!$('paneTraer').hidden) incOpen(); }
 }
 for (const [name, [, tab]] of Object.entries(PAGES)) {
