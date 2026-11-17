@@ -9,8 +9,8 @@ const ORIGINS = ["https://cvergaraqec-blip.github.io", "http://localhost:8099", 
 const PREVIEW = /^https:\/\/([a-z0-9-]+\.)*(claudeusercontent\.com|claude\.ai|claude\.site)$/;
 const allowed = (o: string | null) => !o || ORIGINS.includes(o) || PREVIEW.test(o) || o === "null";
 
-type Piece = { title: string; filename: string; length: string; bpm: string; feel: string; instruments: string; description: string; isrc: string };
-type Track = { t: string; f: string; s: number; b: number; feel: string; ins: string; d: string; i: string };
+type Piece = { title: string; filename: string; length: string; bpm: string; feel: string; instruments: string; description: string; isrc: string; collection: string | null };
+type Track = { t: string; f: string; s: number; b: number; feel: string; ins: string; d: string; i: string; g: string };
 let cache: { at: number; tracks: Track[]; files: Set<string> } | null = null;
 
 const secs = (l: string) => (l || "").split(":").reduce((a, x) => a * 60 + (Number(x) || 0), 0);
@@ -19,9 +19,15 @@ async function catalog() {
   const r = await fetch(BASE + "pieces.json", { signal: AbortSignal.timeout(20000) });
   if (!r.ok) throw new Error("catalog " + r.status);
   const pieces = (await r.json()) as Piece[];
+  // Collection names ("Funk and Blues", "Rock Classic"…) work as the genre.
+  const names: Record<string, string> = {};
+  try {
+    const c = await fetch(BASE + "collections.json", { signal: AbortSignal.timeout(10000) });
+    if (c.ok) for (const x of (await c.json()) as { id: string; collection_name: string }[]) names[x.id] = x.collection_name;
+  } catch { /* genres are optional */ }
   const tracks = pieces.filter((p) => p.filename && p.title).map((p) => ({
     t: p.title, f: p.filename, s: secs(p.length), b: Number(p.bpm) || 0,
-    feel: p.feel || "", ins: p.instruments || "", d: (p.description || "").slice(0, 160), i: p.isrc || "",
+    feel: p.feel || "", ins: p.instruments || "", d: (p.description || "").slice(0, 160), i: p.isrc || "", g: (p.collection && names[p.collection]) || "",
   }));
   cache = { at: Date.now(), tracks, files: new Set(tracks.map((x) => x.f)) };
   return cache;
