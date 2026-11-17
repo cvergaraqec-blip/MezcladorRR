@@ -329,6 +329,14 @@ ul.how b { color: var(--ink); font-weight: 600; }
 .inc-facts dt { font-size: 11.5px; color: var(--muted); }
 .inc-facts dd { margin: 0; font-weight: 600; }
 .inc-facts dd::before { content: '● '; color: var(--lime); }
+.pv { flex: 2 1 260px; min-width: 0; display: flex; align-items: center; gap: 8px; padding: 6px 10px; border-radius: 99px; background: #11160d; border: 1px solid var(--line); }
+.pv button { min-height: 30px !important; min-width: 30px; padding: 0 !important; border-radius: 99px; font-size: 13px !important; }
+.pv .pv-seek { flex: 1 1 0; width: 0; min-width: 40px; accent-color: var(--lime); }
+.pv .pv-vol { flex: 0 1 70px; width: 70px; min-width: 40px; accent-color: var(--lime); }
+.pv .pv-t { font: 600 11px var(--font-num); font-variant-numeric: tabular-nums; color: var(--muted); white-space: nowrap; }
+.pv .pv-ic { font-size: 13px; color: var(--muted); }
+.artist-tracks .pv { flex-basis: 100%; }
+@media (max-width: 560px) { .pv { flex-basis: 100%; order: 5; gap: 5px; padding: 4px 8px; } .pv .pv-vol { flex-basis: 52px; } .pv .pv-ic { display: none; } }
 .freeitem .t em { font-style: normal; color: var(--muted); font-size: 12px; }
 .freeitem .added { color: var(--lime); font-size: 12px; }
 .cred-box { margin: 0; padding: 10px 12px; border-radius: 10px; background: #141a0f; border: 1px solid var(--line); font-size: 13px; color: var(--ink); overflow-wrap: anywhere; }
@@ -1730,7 +1738,29 @@ function artistHint(text) {
 const preview = new Audio();
 let previewBtn = null;
 preview.addEventListener('ended', () => { if (previewBtn) previewBtn.setAttribute('aria-pressed', 'false'); previewBtn = null; });
-function stopPreview() { preview.pause(); if (previewBtn) previewBtn.setAttribute('aria-pressed', 'false'); previewBtn = null; }
+function stopPreview() { preview.pause(); if (previewBtn) previewBtn.setAttribute('aria-pressed', 'false'); previewBtn = null; pv.remove(); }
+// The little player shown in the row that is playing: pause, seek and volume.
+const pv = document.createElement('div'); pv.className = 'pv';
+pv.innerHTML = '<button type="button" class="pv-pp" aria-label="Pausa">❚❚</button><span class="pv-t pv-cur">0:00</span>' +
+  '<input class="pv-seek" type="range" min="0" max="1000" value="0" aria-label="Adelantar o atrasar la canción">' +
+  '<span class="pv-t pv-dur">0:00</span><span class="pv-ic" aria-hidden="true">🔊</span>' +
+  '<input class="pv-vol" type="range" min="0" max="100" value="80" aria-label="Volumen">';
+const pvQ = (c) => pv.querySelector(c);
+const pvTime = (x) => { x = Math.max(0, Math.floor(x || 0)); return Math.floor(x / 60) + ':' + String(x % 60).padStart(2, '0'); };
+let pvSeeking = false;
+preview.volume = 0.8;
+pvQ('.pv-pp').addEventListener('click', () => { if (preview.paused) preview.play().catch(() => {}); else preview.pause(); });
+pvQ('.pv-seek').addEventListener('pointerdown', () => { pvSeeking = true; });
+pvQ('.pv-seek').addEventListener('input', (e) => { if (isFinite(preview.duration)) { preview.currentTime = (e.target.value / 1000) * preview.duration; pvQ('.pv-cur').textContent = pvTime(preview.currentTime); } });
+for (const ev of ['pointerup', 'pointercancel', 'change']) pvQ('.pv-seek').addEventListener(ev, () => { pvSeeking = false; });
+pvQ('.pv-vol').addEventListener('input', (e) => { preview.volume = e.target.value / 100; pvQ('.pv-ic').textContent = preview.volume === 0 ? '🔇' : '🔊'; });
+const pvSync = () => {
+  pvQ('.pv-pp').textContent = preview.paused ? '▶' : '❚❚'; pvQ('.pv-pp').setAttribute('aria-label', preview.paused ? 'Seguir' : 'Pausa');
+  pvQ('.pv-cur').textContent = pvTime(preview.currentTime); pvQ('.pv-dur').textContent = isFinite(preview.duration) ? pvTime(preview.duration) : '–:––';
+  if (!pvSeeking && isFinite(preview.duration) && preview.duration > 0) pvQ('.pv-seek').value = Math.round((preview.currentTime / preview.duration) * 1000);
+};
+for (const ev of ['timeupdate', 'play', 'pause', 'loadedmetadata', 'durationchange']) preview.addEventListener(ev, pvSync);
+function showPlayer(after) { pvQ('.pv-seek').value = 0; pvQ('.pv-cur').textContent = '0:00'; pvQ('.pv-dur').textContent = '–:––'; after.after(pv); pvSync(); }
 async function loadTracks(a, box) {
   let id = a.dzId;
   if (!id) { const d = await deezerArtist(a.name); const m = d && (d.find((x) => fold(x.name) === fold(a.name)) || d[0]); id = m && m.id; }
@@ -1752,7 +1782,7 @@ async function loadTracks(a, box) {
       if (previewBtn === b) { stopPreview(); return; }
       stopPreview(); if (playing) stop();
       preview.src = t.preview; preview.play().catch(() => {});
-      previewBtn = b; b.setAttribute('aria-pressed', 'true');
+      previewBtn = b; b.setAttribute('aria-pressed', 'true'); pv.remove(); showPlayer(box.lastElementChild);
     });
     box.appendChild(b);
   }
@@ -2187,6 +2217,7 @@ function trackRow(x) {
     stopPreview(); if (playing) stop();
     preview.src = x.play; preview.play().catch(() => {});
     previewBtn = play; play.setAttribute('aria-pressed', 'true'); play.textContent = '■ Parar';
+    showPlayer(row.querySelector('.t'));
   });
   const add = document.createElement('button'); add.type = 'button'; add.className = 'primary'; add.textContent = '＋ Agregar a Mis listas';
   add.addEventListener('click', () => trackAdd(x, add, row));
