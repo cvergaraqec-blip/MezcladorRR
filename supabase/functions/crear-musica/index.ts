@@ -29,8 +29,8 @@ const LAYERS = {
 const ORIGINS = ["https://cvergaraqec-blip.github.io", "http://localhost:8099", "http://127.0.0.1:8099"];
 // Preview copies of the page opened inside claude.ai (Artifacts).
 const PREVIEW = /^https:\/\/([a-z0-9-]+\.)*(claudeusercontent\.com|claude\.ai|claude\.site)$/;
-// The Netlify copy of the page (site name starting with "mezcladorrr").
-const NETLIFY = /^https:\/\/([a-z0-9-]+--)?mezcladorrr[a-z0-9-]*\.netlify\.app$/;
+// The Netlify or Vercel copy of the page (site name starting with "mezcladorrr").
+const NETLIFY = /^https:\/\/([a-z0-9-]+--)?mezcladorrr[a-z0-9-]*\.(netlify|vercel)\.app$/;
 // Artifact previews may run in a sandboxed frame whose origin is "null".
 const allowed = (o: string | null) => !!o && (ORIGINS.includes(o) || PREVIEW.test(o) || NETLIFY.test(o) || o === "null");
 const MODELS = ["claude-opus-5-5", "claude-haiku-5-5"];

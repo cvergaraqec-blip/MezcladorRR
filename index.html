@@ -204,6 +204,16 @@ ul.how b { color: var(--ink); font-weight: 600; }
 #play { min-height: 48px; min-width: 130px; font-size: 15px; border-radius: 99px; }
 .mixes { padding: 16px; border: 1px solid var(--border); border-radius: 16px; background: var(--panel); }
 .mixes h2 { font-size: 16px; }
+.rbox { display: grid; gap: 12px; padding: 16px; border: 1px solid var(--border); border-radius: 16px; background: var(--panel); margin-top: 12px; }
+.rbox-head { display: flex; flex-wrap: wrap; gap: 10px 16px; align-items: center; justify-content: space-between; }
+.rbox-head h2 { font-size: 16px; margin: 0 0 2px; }
+.rbox-head > div { display: grid; min-width: 0; flex: 1 1 260px; }
+.rt-head input { flex: 1 1 200px; min-height: 36px; max-width: 320px; background: #11160d; color: var(--ink); border: 1px solid var(--line); border-radius: 8px; padding: 0 10px; font: inherit; }
+.rt-saved { display: grid; gap: 8px; }
+.rt-saved h3 { font-size: 14px; margin: 0; }
+.mixitem.simple { grid-template-columns: minmax(0, 1.4fr) minmax(0, 2fr) auto; }
+.pub { margin-top: 12px; }
+@media (max-width: 720px) { .mixitem.simple { grid-template-columns: minmax(0, 1fr); } .mixitem.simple .c { display: block; } }
 .routine { flex: 1 1 100%; display: grid; gap: 8px; padding: 12px; border: 1px solid var(--line); border-radius: 12px; background: #141a10; }
 .rt-head { display: flex; flex-wrap: wrap; gap: 4px 12px; align-items: baseline; }
 .rt-list { margin: 0; padding: 0; list-style: none; display: grid; gap: 6px; counter-reset: rt; }
@@ -217,7 +227,7 @@ ul.how b { color: var(--ink); font-weight: 600; }
 .bpmstep { min-width: 34px; min-height: 34px; padding: 0; border-radius: 99px; font-size: 18px; font-weight: 700; line-height: 1; flex: none; }
 .mixlist { display: block; border: 1px solid var(--line); border-radius: 12px; overflow: hidden; }
 .mixlist > p { margin: 0; padding: 14px; }
-.mixhead, .mixitem { display: grid; grid-template-columns: 34px minmax(0, 2fr) minmax(0, 1.2fr) 64px 64px minmax(0, 1.1fr) 250px; align-items: center; gap: 10px; padding: 9px 12px; }
+.mixhead, .mixitem { display: grid; grid-template-columns: 34px minmax(0, 2fr) minmax(0, 1.2fr) 64px 64px minmax(0, 1.1fr) 340px; align-items: center; gap: 10px; padding: 9px 12px; }
 .mixhead { background: #12170e; color: var(--muted); font-size: 11px; text-transform: uppercase; letter-spacing: .5px; }
 .mixitem { border: 0; border-top: 1px solid var(--line); border-radius: 0; background: transparent; flex-wrap: nowrap; }
 .mixitem:nth-child(odd) { background: #161c11; }
@@ -350,6 +360,7 @@ ul.how b { color: var(--ink); font-weight: 600; }
     <nav class="tabs" aria-label="Secciones">
       <a href="#crear" id="tabPista" aria-current="page">1 · Crear música</a>
       <a href="#listas" id="tabMesa">2 · Mis listas</a>
+      <a href="#publicar" id="tabPub">3 · Temas a publicar</a>
     </nav>
   </header>
   <div id="pagePista" class="page">
@@ -427,7 +438,6 @@ ul.how b { color: var(--ink); font-weight: 600; }
     <div class="seg" role="group" aria-label="Modo">
       <button id="modeFixed" aria-pressed="true">BPM fijo</button>
       <button id="modeJourney" aria-pressed="false">Recorrido 45 → 215</button>
-      <button id="modeRoutine" aria-pressed="false">Rutina</button>
     </div>
     <div class="bpm">
       <button id="bpmDown" class="bpmstep" type="button" aria-label="Bajar BPM">−</button>
@@ -437,12 +447,25 @@ ul.how b { color: var(--ink); font-weight: 600; }
       <span id="phase" class="phase">Spa</span>
     </div>
     <span id="status" class="status" role="status">Conectando…</span>
-    <div id="routine" class="routine" hidden>
-      <div class="rt-head"><b>Rutina de entrenamiento</b><span id="rtTotal" class="note"></span></div>
-      <ol id="rtList" class="rt-list"></ol>
-      <div class="rt-foot"><button id="rtAdd" type="button">＋ Agregar tramo</button><span id="rtNow" class="rt-now" aria-live="polite"></span></div>
-    </div>
   </section>
+    <section id="routineBox" class="rbox" aria-label="Rutinas de entrenamiento">
+      <div class="rbox-head">
+        <div><h2>Rutinas de entrenamiento</h2><span class="note">Arma tramos de BPM (por ejemplo de 90 a 120 en 3 min) para entrenar con la música que está sonando.</span></div>
+        <button id="rtCreate" type="button" class="primary">＋ Crear rutina</button>
+      </div>
+      <div id="routine" class="routine" hidden>
+        <div class="rt-head"><input id="rtName" type="text" maxlength="40" placeholder="Nombre de la rutina" aria-label="Nombre de la rutina"><span id="rtTotal" class="note"></span></div>
+        <ol id="rtList" class="rt-list"></ol>
+        <div class="rt-foot">
+          <button id="rtAdd" type="button">＋ Agregar tramo</button>
+          <button id="rtPlay" type="button" class="go">▶ Probar rutina</button>
+          <button id="rtSave" type="button">Guardar rutina</button>
+          <button id="rtClose" type="button">Cerrar</button>
+          <span id="rtNow" class="rt-now" aria-live="polite"></span>
+        </div>
+      </div>
+      <div id="rtSaved" class="rt-saved"></div>
+    </section>
     <section id="saveBar" class="savebar" aria-live="polite">
       <div><b id="saveTitle2">Guardar en Mis listas</b><span id="saveNote" class="note">Crea o trae una música y guárdala aquí para modificarla después.</span></div>
       <input id="saveName" type="text" maxlength="60" placeholder="Nombre de tu música" aria-label="Nombre de tu música">
@@ -536,6 +559,18 @@ ul.how b { color: var(--ink); font-weight: 600; }
   </section>
   </div>
   </details>
+  </div>
+  <div id="pagePub" class="page" hidden>
+    <p class="sub">Lo que marcas para subir después a la app <b>RadioRun</b>. Agrega temas desde <b>Mis listas</b> (botón "Publicar") y rutinas desde <b>Rutinas de entrenamiento</b>.</p>
+    <div id="pubSlot"></div>
+    <section class="mixes pub" aria-label="Rutinas a publicar">
+      <h2>Rutinas</h2>
+      <div id="pubRutinas" class="mixlist"></div>
+    </section>
+    <section class="mixes pub" aria-label="Canciones libres a publicar">
+      <h2>Canciones libres</h2>
+      <div id="pubCanciones" class="mixlist"></div>
+    </section>
   </div>
 </div>
 
@@ -843,6 +878,7 @@ function stop() {
   const m = master; m.gain.setTargetAtTime(0, ctx.currentTime, 0.05); setTimeout(() => m.disconnect(), 400);
   for (const l of [...engine.layers, ...engine.loopLayers]) for (const v of l.voices) v.data = null;
   $('play').textContent = 'Play'; $('play').setAttribute('aria-pressed', 'false');
+  if ($('rtPlay')) $('rtPlay').textContent = '▶ Probar rutina';
   draw();
 }
 function shownBpm() { return playing ? (mode !== 'fixed' ? currentBpm() : fixedBpm) : mode === 'journey' ? JOURNEY.from : mode === 'routine' ? (routine[0]?.from ?? fixedBpm) : fixedBpm; }
@@ -1047,15 +1083,12 @@ function setMode(m) {
   mode = m;
   $('modeFixed').setAttribute('aria-pressed', String(m === 'fixed'));
   $('modeJourney').setAttribute('aria-pressed', String(m === 'journey'));
-  $('modeRoutine').setAttribute('aria-pressed', String(m === 'routine'));
   $('bpm').disabled = m !== 'fixed';
-  $('routine').hidden = m !== 'routine';
-  if (m === 'routine') renderRoutine();
+  $('rtPlay').textContent = m === 'routine' && playing ? '■ Parar rutina' : '▶ Probar rutina';
   frame();
 }
 $('modeFixed').addEventListener('click', () => setMode('fixed'));
 $('modeJourney').addEventListener('click', () => setMode('journey'));
-$('modeRoutine').addEventListener('click', () => setMode('routine'));
 const fmtT = (sec) => { sec = Math.max(0, Math.round(sec)); return Math.floor(sec / 60) + ':' + String(sec % 60).padStart(2, '0'); };
 function routineChanged() {
   try { localStorage.setItem('mezcladorrr.rutina', JSON.stringify(routine)); } catch (e) {}
@@ -1086,7 +1119,81 @@ function routineNow() {
   const r = playing ? routineAt(Math.max(0, ctx.currentTime - journeyStart)) : null;
   const i = r ? r.i : -1;
   if (i !== rtShown) { rtShown = i; [...$('rtList').children].forEach((li, k) => li.classList.toggle('now', k === i)); }
-  $('rtNow').textContent = r && !r.done ? 'Tramo ' + (i + 1) + ' de ' + routine.length + ' · quedan ' + fmtT(r.left) + ' · total ' + fmtT(rtTotalSec() - Math.max(0, ctx.currentTime - journeyStart)) : 'Pulsa Play para empezar la rutina.';
+  $('rtNow').textContent = r && !r.done ? 'Tramo ' + (i + 1) + ' de ' + routine.length + ' · quedan ' + fmtT(r.left) + ' · total ' + fmtT(rtTotalSec() - Math.max(0, ctx.currentTime - journeyStart)) : 'Pulsa "Probar rutina" para escucharla.';
+}
+// ---- Saved routines and "Temas a publicar" ----
+let routines = [], rtEditId = null;
+try { const r = JSON.parse(localStorage.getItem('mezcladorrr.rutinas')); if (Array.isArray(r)) routines = r; } catch (e) {}
+const storeRoutines = () => { try { localStorage.setItem('mezcladorrr.rutinas', JSON.stringify(routines)); } catch (e) {} };
+const segsText = (segs) => [segs[0]?.from, ...segs.map((x) => x.to)].join('→') + ' BPM';
+const segsTime = (segs) => fmtT(segs.reduce((a, x) => a + Math.max(0, +x.min || 0) * 60, 0));
+function openRoutineEditor(r) {
+  rtEditId = r ? r.id : null;
+  routine = JSON.parse(JSON.stringify(r ? r.segs : [{ from: 90, to: 120, min: 3 }, { from: 120, to: 130, min: 3 }]));
+  $('rtName').value = r ? r.name : '';
+  $('routine').hidden = false; $('rtCreate').hidden = true;
+  renderRoutine(); routineNow();
+}
+function closeRoutineEditor() {
+  if (mode === 'routine') setMode('fixed');
+  $('routine').hidden = true; $('rtCreate').hidden = false; rtEditId = null;
+}
+$('rtCreate').addEventListener('click', () => { openRoutineEditor(null); $('rtName').focus(); });
+$('rtClose').addEventListener('click', closeRoutineEditor);
+$('rtPlay').addEventListener('click', async () => {
+  if (mode === 'routine' && playing) { stop(); setMode('fixed'); return; }
+  setMode('routine'); await start(); $('rtPlay').textContent = '■ Parar rutina';
+});
+$('rtSave').addEventListener('click', () => {
+  const name = $('rtName').value.trim() || 'Rutina ' + (routines.length + 1);
+  const old = routines.find((x) => x.id === rtEditId);
+  if (old) { old.name = name; old.segs = JSON.parse(JSON.stringify(routine)); }
+  else { const r = { id: 'r' + Date.now(), name, segs: JSON.parse(JSON.stringify(routine)), publish: false, created: Date.now() }; routines.unshift(r); rtEditId = r.id; }
+  $('rtName').value = name; storeRoutines(); renderRoutines();
+  $('rtSave').textContent = '✓ Guardada'; setTimeout(() => { $('rtSave').textContent = 'Guardar rutina'; }, 1500);
+});
+function mkBtn(box, label, fn, cls) { const b = document.createElement('button'); b.type = 'button'; b.textContent = label; if (cls) b.className = cls; b.addEventListener('click', fn); box.appendChild(b); return b; }
+function confirmDel(b, fn) { if (b.dataset.sure) return fn(); b.dataset.sure = '1'; b.textContent = '¿Seguro?'; setTimeout(() => { if (b.isConnected) { delete b.dataset.sure; b.textContent = 'Borrar'; } }, 3000); }
+function listRow(name, meta, extra) {
+  const row = document.createElement('div'); row.className = 'mixitem simple';
+  const nm = document.createElement('div'); nm.className = 'nm'; nm.textContent = name; row.appendChild(nm);
+  if (extra) { const e = document.createElement('em'); e.textContent = extra; nm.appendChild(e); }
+  const mt = document.createElement('div'); mt.className = 'c'; mt.textContent = meta; row.appendChild(mt);
+  const acts = document.createElement('div'); acts.className = 'acts'; row.appendChild(acts);
+  return [row, acts];
+}
+function renderRoutines() {
+  const box = $('rtSaved'); box.innerHTML = '';
+  if (!routines.length) return;
+  const h = document.createElement('h3'); h.textContent = 'Mis rutinas'; box.appendChild(h);
+  const list = document.createElement('div'); list.className = 'mixlist'; box.appendChild(list);
+  for (const r of routines) {
+    const [row, acts] = listRow(r.name, r.segs.length + (r.segs.length === 1 ? ' tramo' : ' tramos') + ' · ' + segsText(r.segs) + ' · ' + segsTime(r.segs), r.id === rtEditId && !$('routine').hidden ? 'editando' : '');
+    mkBtn(acts, '▶ Probar', async () => { openRoutineEditor(r); setMode('routine'); await start(); $('rtPlay').textContent = '■ Parar rutina'; renderRoutines(); }, 'go');
+    mkBtn(acts, 'Editar', () => { openRoutineEditor(r); renderRoutines(); $('routine').scrollIntoView({ block: 'nearest' }); });
+    mkBtn(acts, r.publish ? '✓ En publicar' : 'Publicar', () => { r.publish = !r.publish; storeRoutines(); renderRoutines(); });
+    const del = mkBtn(acts, 'Borrar', () => confirmDel(del, () => { routines = routines.filter((x) => x !== r); if (rtEditId === r.id) closeRoutineEditor(); storeRoutines(); renderRoutines(); }));
+    list.appendChild(row);
+  }
+}
+function renderPub() {
+  const rb = $('pubRutinas'), cb = $('pubCanciones'); rb.innerHTML = ''; cb.innerHTML = '';
+  const rs = routines.filter((r) => r.publish), ms = mixes.filter((m) => m.publish);
+  if (!rs.length) rb.innerHTML = '<p class="note">Todavía no hay rutinas para publicar. En <b>Rutinas de entrenamiento</b> pulsa <b>Publicar</b> en una rutina guardada.</p>';
+  if (!ms.length) cb.innerHTML = '<p class="note">Todavía no hay canciones para publicar. En <b>2 · Mis listas</b> pulsa <b>Publicar</b> en una música.</p>';
+  for (const r of rs) {
+    const [row, acts] = listRow(r.name, segsText(r.segs) + ' · ' + segsTime(r.segs));
+    mkBtn(acts, '▶ Probar', async () => { openRoutineEditor(r); setMode('routine'); await start(); $('rtPlay').textContent = '■ Parar rutina'; }, 'go');
+    mkBtn(acts, 'Quitar', () => { r.publish = false; storeRoutines(); renderRoutines(); renderPub(); });
+    rb.appendChild(row);
+  }
+  for (const m of ms) {
+    const nT = (m.loops || []).length;
+    const [row, acts] = listRow(m.name, [m.style, (m.bpm || '?') + ' BPM', nT ? nT + (nT === 1 ? ' tema' : ' temas') : '', (m.loops || []).map((l) => l.name).filter(Boolean).join(', ')].filter(Boolean).join(' · '));
+    mkBtn(acts, '▶ Escuchar', async () => { stopPreview(); await openMixById(m.id); if (!playing && engine) await start(); }, 'go');
+    mkBtn(acts, 'Quitar', () => { m.publish = false; storeMixes(); renderMixes(); renderPub(); });
+    cb.appendChild(row);
+  }
 }
 $('bpm').addEventListener('input', (e) => { fixedBpm = Number(e.target.value); frame(); saveOpenMix(); });
 function stepBpm(d) {
@@ -1537,7 +1644,7 @@ async function openMixById(id, then) {
   if (missing) setStatus(missing === 1 ? 'No pude volver a cargar 1 tema (¿sin conexión?).' : 'No pude volver a cargar ' + missing + ' temas (¿sin conexión?).', true);
   renderLoops(); layout();
   fixedBpm = m.bpm || fixedBpm; $('bpm').value = fixedBpm;
-  if (Array.isArray(m.routine) && m.routine.length) { routine = JSON.parse(JSON.stringify(m.routine)); setMode('routine'); }
+  if (Array.isArray(m.routine) && m.routine.length) { openRoutineEditor({ id: null, name: 'Rutina de ' + m.name, segs: m.routine }); setMode('routine'); }
   else if (mode !== 'fixed') setMode('fixed');
   live(); fill(); draw(); frame(); changed(); renderMixes();
   if (then === 'mesa') { pageNow = 'mesa'; try { history.replaceState(null, '', '#listas'); } catch {} showPage(); }
@@ -1571,6 +1678,7 @@ function renderMixes() {
       const mk = (label, fn) => { const b = document.createElement('button'); b.type = 'button'; b.textContent = label; b.addEventListener('click', fn); acts.appendChild(b); return b; };
       mk('▶ Escuchar', async () => { stopPreview(); await openMixById(m.id); if (!playing && engine) await start(); }).className = 'go';
       mk(m.id === openMix ? '✓ Abierta' : 'Modificar', async () => { stopPreview(); await openMixById(m.id, 'mesa'); });
+      mk(m.publish ? '✓ En publicar' : 'Publicar', () => { m.publish = !m.publish; storeMixes(); renderMixes(); });
       const del = mk('Borrar', () => {
         if (del.dataset.sure) { mixes = mixes.filter((x) => x.id !== m.id); if (openMix === m.id) openMix = null; storeMixes(); renderMixes(); return; }
         del.dataset.sure = '1'; del.textContent = '¿Seguro?'; setTimeout(() => { if (del.isConnected) { delete del.dataset.sure; del.textContent = 'Borrar'; } }, 3000);
@@ -2032,17 +2140,18 @@ async function incOpen() {
 // that don't pass link clicks through.
 // Two pages: 1 · Crear música (#crear) and 2 · Mis listas (#listas), where a
 // saved music is edited in the Mesa mezcladora and the Editor avanzado.
-const PAGES = { pista: ['pagePista', 'tabPista'], mesa: ['pageMesa', 'tabMesa'] };
-const HASH = { pista: 'crear', mesa: 'listas' };
-const pageFromHash = () => ({ listas: 'mesa', mesa: 'mesa' }[location.hash.slice(1)] || 'pista');
+const PAGES = { pista: ['pagePista', 'tabPista'], mesa: ['pageMesa', 'tabMesa'], pub: ['pagePub', 'tabPub'] };
+const HASH = { pista: 'crear', mesa: 'listas', pub: 'publicar' };
+const pageFromHash = () => ({ listas: 'mesa', mesa: 'mesa', publicar: 'pub' }[location.hash.slice(1)] || 'pista');
 let pageNow = pageFromHash();
 function showPage() {
   for (const [name, [page, tab]] of Object.entries(PAGES)) {
     $(page).hidden = name !== pageNow;
     if (name === pageNow) $(tab).setAttribute('aria-current', 'page'); else $(tab).removeAttribute('aria-current');
   }
-  if (pageNow === 'mesa') { $('transportSlot').appendChild($('transport')); layout(); draw(); buildDesk(); requestAnimationFrame(meters); }
-  else { $('saveBar').before($('transport')); if (!$('paneTraer').hidden) incOpen(); }
+  if (pageNow === 'mesa') { $('transportSlot').appendChild($('transport')); $('transport').after($('routineBox')); layout(); draw(); buildDesk(); requestAnimationFrame(meters); }
+  else if (pageNow === 'pub') { $('pubSlot').appendChild($('transport')); renderPub(); }
+  else { $('saveBar').before($('transport')); $('transport').after($('routineBox')); if (!$('paneTraer').hidden) incOpen(); }
 }
 for (const [name, [, tab]] of Object.entries(PAGES)) {
   $(tab).addEventListener('click', (e) => {
@@ -2053,6 +2162,7 @@ for (const [name, [, tab]] of Object.entries(PAGES)) {
 }
 $('adv').addEventListener('toggle', () => { if ($('adv').open) { layout(); draw(); } });
 window.addEventListener('hashchange', () => { pageNow = pageFromHash(); showPage(); });
+renderRoutines();
 
 // Crear música: "Elegir la música" (a style or a musician) or "Traer de otra
 // plataforma" (free music libraries). They are separate, not mixed.
