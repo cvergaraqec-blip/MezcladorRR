@@ -213,6 +213,7 @@ ul.how b { color: var(--ink); font-weight: 600; }
 .rt-saved h3 { font-size: 14px; margin: 0; }
 .mixitem.simple { grid-template-columns: minmax(0, 1.4fr) minmax(0, 2fr) auto; }
 .pub { margin-top: 12px; }
+.nm input.rename { width: 100%; min-height: 32px; background: #11160d; color: var(--ink); border: 1px solid var(--lime); border-radius: 8px; padding: 0 8px; font: inherit; font-weight: 600; }
 .repo-key { margin-top: 12px; }
 .repo-row { display: flex; flex-wrap: wrap; gap: 8px 12px; align-items: center; }
 .repo-row input[type=password] { flex: 1 1 200px; max-width: 280px; min-height: 36px; background: #11160d; color: var(--ink); border: 1px solid var(--line); border-radius: 8px; padding: 0 10px; font: inherit; }
@@ -232,7 +233,7 @@ ul.how b { color: var(--ink); font-weight: 600; }
 .bpmstep { min-width: 34px; min-height: 34px; padding: 0; border-radius: 99px; font-size: 18px; font-weight: 700; line-height: 1; flex: none; }
 .mixlist { display: block; border: 1px solid var(--line); border-radius: 12px; overflow: hidden; }
 .mixlist > p { margin: 0; padding: 14px; }
-.mixhead, .mixitem { display: grid; grid-template-columns: 34px minmax(0, 2fr) minmax(0, 1.2fr) 64px 64px minmax(0, 1.1fr) 340px; align-items: center; gap: 10px; padding: 9px 12px; }
+.mixhead, .mixitem { display: grid; grid-template-columns: 34px minmax(0, 2fr) minmax(0, 1.2fr) 64px 64px minmax(0, 1.1fr) 420px; align-items: center; gap: 10px; padding: 9px 12px; }
 .mixhead { background: #12170e; color: var(--muted); font-size: 11px; text-transform: uppercase; letter-spacing: .5px; }
 .mixitem { border: 0; border-top: 1px solid var(--line); border-radius: 0; background: transparent; flex-wrap: nowrap; }
 .mixitem:nth-child(odd) { background: #161c11; }
@@ -1171,6 +1172,16 @@ $('rtSave').addEventListener('click', () => {
   $('rtSave').textContent = '✓ Guardada'; setTimeout(() => { $('rtSave').textContent = 'Guardar rutina'; }, 1500);
 });
 function mkBtn(box, label, fn, cls) { const b = document.createElement('button'); b.type = 'button'; b.textContent = label; if (cls) b.className = cls; b.addEventListener('click', fn); box.appendChild(b); return b; }
+// Rename in place: the name turns into a text box; Enter or leaving it saves, Esc cancels.
+function inlineRename(row, current, save) {
+  const nm = row.querySelector('.nm'); if (!nm || nm.querySelector('input')) return;
+  const inp = document.createElement('input'); inp.type = 'text'; inp.value = current; inp.maxLength = 60; inp.className = 'rename'; inp.setAttribute('aria-label', 'Nuevo nombre');
+  nm.replaceChildren(inp); inp.focus(); inp.select();
+  let done = false;
+  const finish = (ok) => { if (done) return; done = true; const v = inp.value.trim(); save(ok && v ? v : null); };
+  inp.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); finish(true); } else if (e.key === 'Escape') finish(false); });
+  inp.addEventListener('blur', () => finish(true));
+}
 function confirmDel(b, fn) { if (b.dataset.sure) return fn(); const orig = b.textContent; b.dataset.sure = '1'; b.textContent = '¿Seguro?'; setTimeout(() => { if (b.isConnected) { delete b.dataset.sure; b.textContent = orig; } }, 3000); }
 function listRow(name, meta, extra) {
   const row = document.createElement('div'); row.className = 'mixitem simple';
@@ -1188,6 +1199,7 @@ function renderRoutines() {
   for (const r of routines) {
     const [row, acts] = listRow(r.name, r.segs.length + (r.segs.length === 1 ? ' tramo' : ' tramos') + ' · ' + segsText(r.segs) + ' · ' + segsTime(r.segs), r.id === rtEditId && !$('routine').hidden ? 'editando' : '');
     mkBtn(acts, '▶ Probar', async () => { openRoutineEditor(r); setMode('routine'); await start(); $('rtPlay').textContent = '■ Parar rutina'; renderRoutines(); }, 'go');
+    mkBtn(acts, '✎ Nombre', () => inlineRename(row, r.name, (v) => { if (v) { r.name = v; if (rtEditId === r.id) $('rtName').value = v; storeRoutines(); } renderRoutines(); }));
     mkBtn(acts, 'Editar', () => { openRoutineEditor(r); renderRoutines(); $('routine').scrollIntoView({ block: 'nearest' }); });
     mkBtn(acts, r.publish ? '✓ En repositorio' : '→ Repositorio', () => { r.publish = !r.publish; storeRoutines(); renderRoutines(); });
     const del = mkBtn(acts, 'Borrar', () => confirmDel(del, () => { routines = routines.filter((x) => x !== r); if (rtEditId === r.id) closeRoutineEditor(); storeRoutines(); renderRoutines(); }));
@@ -1760,6 +1772,7 @@ function renderMixes() {
       const mk = (label, fn) => { const b = document.createElement('button'); b.type = 'button'; b.textContent = label; b.addEventListener('click', fn); acts.appendChild(b); return b; };
       mk('▶ Escuchar', async () => { stopPreview(); await openMixById(m.id); if (!playing && engine) await start(); }).className = 'go';
       mk(m.id === openMix ? '✓ Abierta' : 'Modificar', async () => { stopPreview(); await openMixById(m.id, 'mesa'); });
+      mk('✎ Nombre', () => inlineRename(row, m.name, (v) => { if (v) { m.name = v; storeMixes(); } renderMixes(); }));
       mk(m.publish ? '✓ En repositorio' : '→ Repositorio', () => { m.publish = !m.publish; storeMixes(); renderMixes(); });
       const del = mk('Borrar', () => {
         if (del.dataset.sure) { mixes = mixes.filter((x) => x.id !== m.id); if (openMix === m.id) openMix = null; storeMixes(); renderMixes(); return; }
