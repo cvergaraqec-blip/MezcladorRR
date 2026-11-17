@@ -789,7 +789,10 @@ class Engine {
       const start = Math.round((idx * l.loop.data.length) / slices);
       const now = l.voices[l.cur];
       l.tick++;
-      if (now.active && Math.abs(now.pos - start) <= 2) continue;
+      // Only re-cut when the loop has drifted audibly (over ~30 ms); re-cutting on
+      // every 16th layered two copies of the song a few ms apart (a ghost sound underneath).
+      const len = l.loop.data.length, dpos = Math.abs(now.pos - start), drift = Math.min(dpos, len - dpos);
+      if (now.active && now.step >= 0 && drift <= this.rate * 0.03) continue;
       now.fadeOut(256);
       l.cur = 1 - l.cur;
       l.voices[l.cur].start(l.loop.data, 1, 0, start, 32);
@@ -2244,7 +2247,7 @@ async function trackAdd(x, btn, row) {
     if (fresh) { if (playing) stop(); openMix = null; draft = null; clearLoops(); silenceKit(); renderLoops(); layout(); }
     // A new mix takes the track's own tempo (when known), so it plays at its natural speed.
     if (fresh && x.b) { fixedBpm = Math.min(MAX, Math.max(MIN, x.b)); $('bpm').value = fixedBpm; if (mode !== 'fixed') setMode('fixed'); frame(); }
-    ok = await addLoopFile(new File([blob], x.file), { name: x.t, bpm: x.b || fixedBpm, src: x.src, credit: x.credit });
+    ok = await addLoopFile(new File([blob], x.file), { name: x.t, bpm: x.b || fixedBpm, src: x.src, credit: x.credit, settings: fresh ? { gain: 1 } : undefined });
     if (ok && fresh) {
       focus = []; addMix(x.t, x.style, fixedBpm);
       $('saveMix').disabled = true; $('saveMix').textContent = 'Guardar'; $('saveBar').classList.remove('ready');
