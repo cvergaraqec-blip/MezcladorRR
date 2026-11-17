@@ -427,7 +427,7 @@ ul.how b { color: var(--ink); font-weight: 600; }
       <p class="cred-box"><b>«Título del tema» Kevin MacLeod (incompetech.com)</b><br>Licensed under Creative Commons: By Attribution 4.0<br>https://creativecommons.org/licenses/by/4.0/</p>
       <p class="note">Para Jamendo y las otras fuentes: <b>«Título» de Autor</b>, la licencia (por ejemplo CC BY 3.0) y el enlace al tema. Si es <b>CC BY-SA</b>, lo que publiques con ese tema debe compartirse con la misma licencia.</p>
       <ul class="tips">
-        <li>Cada tema que agregas queda en <b>Mis listas</b> con su crédito, listo para editarlo en la Mesa y el Editor avanzado.</li>
+        <li>Cada tema que agregas queda en <b>Mis listas</b> con su crédito, listo para editarlo en la Mesa y el Editor secuencial.</li>
         <li>Si alguna vez no puedes poner el crédito, Incompetech vende una licencia que lo evita. <a href="https://incompetech.com/music/royalty-free/faq.html" target="_blank" rel="noopener">Preguntas frecuentes ↗</a></li>
         <li>Esta guía es orientativa, no es asesoría legal.</li>
       </ul>
@@ -474,7 +474,7 @@ ul.how b { color: var(--ink); font-weight: 600; }
   </div>
 
   <div id="pageMesa" class="page" hidden>
-    <p class="sub">Elige una de tus músicas guardadas y modifícala: arriba la <b>Mesa mezcladora</b> (volumen, tono, graves, agudos, eco de cada instrumento) y abajo el <b>Editor avanzado</b> (en qué BPM entra cada instrumento).</p>
+    <p class="sub">Elige una de tus músicas guardadas y modifícala: arriba la <b>Mesa mezcladora</b> (volumen, tono, graves, agudos, eco de cada instrumento) y abajo el <b>Editor secuencial</b> (en qué BPM entra cada instrumento).</p>
     <section class="mixes" aria-label="Mis listas">
       <h2>Mis listas</h2>
       <div id="mixListMesa" class="mixlist"></div>
@@ -489,7 +489,7 @@ ul.how b { color: var(--ink); font-weight: 600; }
     <section id="deskEdit" class="desk-edit" aria-live="polite"></section>
     <div class="row"><button id="deskReset">Restablecer la mesa</button></div>
   <details id="adv" class="adv" open>
-  <summary><span>Editor avanzado</span><small>Instrumentos por BPM, ajustes finos, tus loops y archivos</small></summary>
+  <summary><span>Editor secuencial</span><small>Instrumentos por BPM, ajustes finos, tus loops y archivos</small></summary>
   <div class="adv-body">
   <div class="row adv-top"><p class="note" id="advNote">Cada fila es un instrumento. La parte verde es el rango de BPM en el que suena: arrastra sus bordes para que entre antes o después.</p>
   <label class="chk"><input type="checkbox" id="showAll"> Ver todo el kit</label></div>
@@ -2139,7 +2139,7 @@ async function incOpen() {
 // Tabs work by click (not only by the #hash), so they also work inside previews
 // that don't pass link clicks through.
 // Two pages: 1 · Crear música (#crear) and 2 · Mis listas (#listas), where a
-// saved music is edited in the Mesa mezcladora and the Editor avanzado.
+// saved music is edited in the Mesa mezcladora and the Editor secuencial.
 const PAGES = { pista: ['pagePista', 'tabPista'], mesa: ['pageMesa', 'tabMesa'], pub: ['pagePub', 'tabPub'] };
 const HASH = { pista: 'crear', mesa: 'listas', pub: 'publicar' };
 const pageFromHash = () => ({ listas: 'mesa', mesa: 'mesa', publicar: 'pub' }[location.hash.slice(1)] || 'pista');
