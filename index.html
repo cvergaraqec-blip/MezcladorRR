@@ -133,6 +133,7 @@ ul.how b { color: var(--ink); font-weight: 600; }
 .artist a { color: var(--lime); }
 .artist .alts { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 4px; }
 .artist .alts button { min-height: 28px; padding: 0 10px; font-size: 12px; font-weight: 500; color: var(--muted); background: transparent; border-radius: 99px; }
+.muteall { position: fixed; right: 14px; bottom: 14px; z-index: 50; min-height: 40px; padding: 0 14px; border-radius: 99px; font-weight: 600; box-shadow: 0 4px 14px rgba(0,0,0,.45); }
 .tabs { display: flex; gap: 6px; border-bottom: 1px solid var(--border); margin-top: 10px; }
 .tabs a { font-weight: 600; font-size: 14px; color: var(--muted); text-decoration: none; padding: 10px 14px; border-bottom: 2px solid transparent; margin-bottom: -1px; }
 .tabs a[aria-current="page"] { color: var(--lime); border-bottom-color: var(--lime); }
@@ -231,6 +232,7 @@ ul.how b { color: var(--ink); font-weight: 600; }
 .rt-list .x { margin-left: auto; min-height: 30px; min-width: 30px; padding: 0; }
 .rt-foot { display: flex; flex-wrap: wrap; gap: 8px 14px; align-items: center; }
 .rt-now { color: var(--lime); font-size: 13px; }
+.seqbar[hidden] { display: none; }
 .seqbar { flex: 1 1 100%; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
 .seqbar input[type=range] { flex: 1 1 160px; min-width: 0; accent-color: var(--lime); }
 .seqt { font: 600 13px var(--font-num); font-variant-numeric: tabular-nums; min-width: 3.5ch; }
@@ -377,6 +379,7 @@ ul.how b { color: var(--ink); font-weight: 600; }
   <header>
     <span class="eyebrow">RadioRun · Adaptive music</span>
     <h1>Mezclador <span>RadioRun</span></h1>
+    <button id="muteAll" type="button" class="muteall" title="Para toda la música de la página">🔇 Silenciar todo</button>
     <nav class="tabs" aria-label="Secciones">
       <a href="#crear" id="tabPista" aria-current="page">1 · Crear música</a>
       <a href="#listas" id="tabMesa">2 · Mis listas</a>
@@ -1218,6 +1221,13 @@ function renderRoutine() {
   });
   routineChanged();
 }
+$('muteAll').addEventListener('click', () => {
+  try { stopPreview(); } catch (e) {}
+  if (playing) stop();
+  if (mode !== 'fixed') setMode('fixed');
+  for (const a of document.querySelectorAll('audio, video')) { try { a.pause(); } catch (e) {} }
+  $('muteAll').textContent = '✓ Silencio'; setTimeout(() => { $('muteAll').textContent = '🔇 Silenciar todo'; }, 1500);
+});
 $('rtAdd').addEventListener('click', () => { const last = routine[routine.length - 1]; const f = last ? last.to : fixedBpm; routine.push({ from: f, to: Math.min(MAX, f + 10), min: 3 }); renderRoutine(); });
 let rtShown = -2;
 function routineNow() {
