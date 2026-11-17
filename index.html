@@ -131,6 +131,10 @@ ul.how b { color: var(--ink); font-weight: 600; }
 .artist .info .ok { color: var(--lime); font-weight: 600; }
 .artist .info .no { color: var(--warn); font-weight: 600; }
 .artist a { color: var(--lime); }
+.artist .tracks button.ref:not([aria-pressed="true"]) { border-color: var(--lime); color: var(--lime); }
+.artist .tracks button.ref::after { content: ' ★ referencia'; font-size: 11px; opacity: .8; }
+.artist .refgo { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-top: 6px; }
+.artist .refgo .note { flex: 1 1 200px; font-size: 12px; }
 .artist .alts { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 4px; }
 .artist .alts button { min-height: 28px; padding: 0 10px; font-size: 12px; font-weight: 500; color: var(--muted); background: transparent; border-radius: 99px; }
 .muteall { position: fixed; right: 14px; bottom: 14px; z-index: 50; min-height: 40px; padding: 0 14px; border-radius: 99px; font-weight: 600; box-shadow: 0 4px 14px rgba(0,0,0,.45); }
@@ -1344,9 +1348,9 @@ function keyNow() {
 $('repoRemember').addEventListener('change', keyNow);
 function repoItem(tipo, x) {
   if (tipo === 'rutina') return { tipo, id: x.id, nombre: x.name, bpm: x.segs[0]?.from, duracion_seg: x.segs.reduce((a, s) => a + Math.max(0, +s.min || 0) * 60, 0), datos: { version: 1, tramos: x.segs } };
-  const loopsOut = (x.loops || []).map((l) => ({ nombre: l.name, url: l.src, credito: l.credit || null, beats: l.beats, ajustes: l.settings || null, mesa: l.desk || null }));
+  const loopsOut = (x.loops || []).filter((l) => !/dzcdn|deezer/i.test(l.src || '')).map((l) => ({ nombre: l.name, url: l.src, credito: l.credit || null, beats: l.beats, ajustes: l.settings || null, mesa: l.desk || null }));
   return { tipo, id: x.id, nombre: x.name, estilo: x.style, bpm: x.bpm,
-    datos: { version: 1, nombre: x.name, estilo: x.style, bpm: x.bpm, instrumentos: x.instruments || null, mezcla: x.mix || {}, mesa: x.desk || {}, master: x.master || null, temas: loopsOut, rutina: x.routine || null },
+    datos: { version: 1, nombre: x.name, estilo: x.style, bpm: x.bpm, instrumentos: x.instruments || null, mezcla: x.mix || {}, mesa: x.desk || {}, master: x.master || null, temas: loopsOut, rutina: x.routine || null, inspirada_en: x.ref ? { artista: x.ref.artist, nota: 'Música original con el kit de la app; no contiene audio del artista.' } : null },
     creditos: loopsOut.filter((l) => l.credito).map((l) => ({ tema: l.nombre, credito: l.credito, url: l.url })) };
 }
 async function exportOne(tipo, x, btn, quiet) {
@@ -1677,15 +1681,16 @@ async function youtubeTitle(id) {
 const country = (() => { try { const dn = new Intl.DisplayNames(['es'], { type: 'region' }); return (c) => (c ? dn.of(c) : ''); } catch { return (c) => c || ''; } })();
 const plainName = (t) => t.replace(/https?:\/\/\S+/g, ' ').replace(/^\s*(me gusta(n)?|me encanta(n)?|quiero( escuchar)?|algo (de|como)|musica de|música de|pon(me)?|escuchar)\s+/i, '').trim();
 const fold = (t) => String(t || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^a-z0-9]+/g, ' ').trim();
+let refTrack = null; // the artist's song used only as a style reference (never stored)
 let artistPick = null, artistFor = '', artistSeq = 0, artistTimer = 0;
 function deezerArtist(q) { return deezer('search/artist?limit=5&q=' + encodeURIComponent(q)); }
-function deezer(path) {
+function deezer(path, raw) {
   return new Promise((res) => {
     const cb = '__dz' + Date.now() + Math.floor(Math.random() * 1e6);
     const s = document.createElement('script');
     const done = (v) => { clearTimeout(t); delete window[cb]; s.remove(); res(v); };
     const t = setTimeout(() => done(null), 6000);
-    window[cb] = (d) => done((d && d.data) || null);
+    window[cb] = (d) => done(raw ? (d && !d.error ? d : null) : (d && d.data) || null);
     s.onerror = () => done(null);
     s.src = 'https://api.deezer.com/' + path + (path.includes('?') ? '&' : '?') + 'output=jsonp&callback=' + cb;
     document.head.appendChild(s);
@@ -1718,7 +1723,7 @@ function editDistance(a, b) {
   return prev[n];
 }
 async function findArtists(q) {
-  const [mb, dz] = await Promise.all([musicBrainz(q), deezerArtist(q)]);
+  const [mb, dz, songs] = await Promise.all([musicBrainz(q), deezerArtist(q), deezer('search?limit=25&q=' + encodeURIComponent(q))]);
   if (!mb && !dz) return claudeArtist(q);
   const key = fold(q);
   const close = (n) => { const f = fold(n); return f === key || f.startsWith(key + ' ') || key.startsWith(f + ' ') || (key.length >= 4 && f.includes(key)); };
@@ -1744,6 +1749,23 @@ async function findArtists(q) {
     const d = dzList.find((a) => fold(a.name) === fold(list[0].name)) || big;
     Object.assign(list[0], { pic: d.picture_medium, link: d.link, fans: d.nb_fan, dzId: d.id });
   }
+  // Some artists use a stage name ("Matthieu Chedid" is -M-): the songs found by
+  // that name tell who is meant. If that artist is far better known than the
+  // name match (or the name match has no songs), it goes first.
+  const count = {};
+  for (const t of songs || []) if (t.artist && t.preview) count[t.artist.id] = (count[t.artist.id] || 0) + 1;
+  const topId = Object.keys(count).sort((x, y) => count[y] - count[x])[0];
+  const cands = (dz || []).slice(0, 3).filter((a) => a.nb_fan != null);
+  if (topId && count[topId] >= 3 && !cands.some((a) => String(a.id) === topId)) { const t = await deezer('artist/' + topId, true); if (t) cands.push(t); }
+  const ar = cands.sort((x, y) => y.nb_fan - x.nb_fan)[0];
+  const cur = list[0]?.fans || 0;
+  if (ar && String(list[0]?.dzId) !== String(ar.id) && ar.nb_fan >= 1000 && ar.nb_fan > 20 * cur) {
+    const real = fromMb(ar.name) || { name: ar.name, where: '', about: '', genre: '' };
+    if (fold(ar.name) !== key) real.about = ['también conocido como ' + q, real.about].filter(Boolean).join(' · ');
+    Object.assign(real, { pic: ar.picture_medium, link: ar.link, fans: ar.nb_fan, dzId: ar.id });
+    const i = list.findIndex((x) => fold(x.name) === fold(ar.name)); if (i >= 0) list.splice(i, 1);
+    list.unshift(real);
+  }
   return list;
 }
 function showArtist(list, q) {
@@ -1762,9 +1784,12 @@ function showArtist(list, q) {
       '<div class="info"><span class="ok">✓ Artista encontrado</span><strong>' + esc(a.name) + '</strong>' +
       (meta ? '<span>' + esc(meta) + '</span>' : '') +
       (fans ? '<span>' + esc(fans) + '</span>' : '') +
-      '<div class="listen"><span>Escúchalo aquí antes de crear (30 segundos de cada canción):</span><div class="tracks"><span class="note">Buscando sus canciones…</span></div></div>' +
+      '<div class="listen"><span><b>1.</b> Elige una canción de referencia para copiar su estilo (solo se escucha aquí, 30 s; no se guarda ni se sube a la app):</span><div class="tracks"><span class="note">Buscando sus canciones…</span></div></div>' +
+      '<div class="refgo"><button type="button" class="primary refbtn">2. Crear en este estilo</button><span class="note">Crea una música <b>original</b> con los instrumentos del kit (tempo, género y energía parecidos) y la guarda en Mis listas.</span></div>' +
       (list.length > 1 ? '<div class="alts"><span>¿No es este?</span></div>' : '') + '</div>';
+    refTrack = null;
     loadTracks(a, box.querySelector('.tracks'));
+    box.querySelector('.refbtn').addEventListener('click', () => createMusic($('aiText').value));
     const alts = box.querySelector('.alts');
     if (alts) list.forEach((b, j) => {
       if (j === i) return;
@@ -1840,10 +1865,13 @@ async function loadTracks(a, box) {
   }
   if (!tracks.length) { box.innerHTML = '<span class="note">No encontré canciones de este artista para escuchar aquí.</span>'; return; }
   box.innerHTML = '';
+  const markRef = (t, b) => { refTrack = t; for (const x of box.querySelectorAll('button')) x.classList.toggle('ref', x === b); };
   for (const t of tracks) {
     const b = document.createElement('button'); b.type = 'button'; b.setAttribute('aria-pressed', 'false');
-    b.textContent = '▶ ' + t.title; b.title = t.title + ' (30 s)';
+    b.textContent = '▶ ' + t.title; b.title = t.title + ' (30 s, referencia)';
+    if (t === tracks[0]) setTimeout(() => markRef(t, b));
     b.addEventListener('click', () => {
+      markRef(t, b);
       if (previewBtn === b) { stopPreview(); return; }
       stopPreview(); if (playing) stop();
       preview.src = t.preview; preview.play().catch(() => {});
@@ -1984,7 +2012,14 @@ async function createMusic(text) {
   const before = snapshot();
   $('aiResult').textContent = 'La IA está escuchando lo que pediste…';
   const yt = Generador.youtubeId(text) || '';
-  const hint = artistHint(text);
+  let hint = artistHint(text);
+  const ref = hint && refTrack ? refTrack : null;
+  let refBpm = 0;
+  if (ref) {
+    const full = await deezer('track/' + ref.id, true);
+    refBpm = full && full.bpm > 50 && full.bpm < 210 ? Math.round(full.bpm) : 0;
+    hint += ' (canción de referencia para el estilo: «' + ref.title + '»' + (refBpm ? ', ' + refBpm + ' BPM' : '') + '; crea algo original, no la copies)';
+  }
   const words = text.replace(/https?:\/\/\S+/g, ' ') + hint;
   let r, source = '', note = '';
   try {
@@ -2008,17 +2043,24 @@ async function createMusic(text) {
   const snd = soundProfile(genreKey, fold(who) || 'mezcla', r.instruments, r.bpm);
   openMix = null; setDeskAll(snd.desk, snd.master);
   const keyNote = snd.desk[r.instruments.find((id) => MELODIC.has(id))]?.pitch;
+  if (refBpm) r.bpm = refBpm;
   fixedBpm = r.bpm; $('bpm').value = r.bpm;
   if (mode !== 'fixed') setMode('fixed');
   live(); fill(); draw(); frame(); changed();
-  const name = (artistPick && plainName(text) === artistFor) ? artistPick.name : text.replace(/https?:\/\/\S+/g, '').trim() || 'Video de YouTube';
+  const isArtist = artistPick && plainName(text) === artistFor;
+  const name = isArtist ? 'Al estilo de ' + artistPick.name : text.replace(/https?:\/\/\S+/g, '').trim() || 'Video de YouTube';
   setDraft(name, r.label);
+  // The Guardar box is gone: the new music goes straight to Mis listas. Only the
+  // kit settings are kept; the artist's song is never stored or exported.
+  clearLoops(); addMix(name, r.label, fixedBpm);
+  if (isArtist) { const m = mixes[0]; m.ref = { artist: artistPick.name, song: ref ? ref.title : null }; storeMixes(); }
+  if (ref) source = 'Estilo tomado de «' + ref.title + '» de ' + artistPick.name + ' (solo como referencia). ';
   abState = { before, after: snapshot() };
   $('ab').hidden = false; $('abBefore').setAttribute('aria-pressed', 'false'); $('abAfter').setAttribute('aria-pressed', 'true');
   flashMap();
   $('aiResult').innerHTML = esc(source) + '<b>' + esc(r.label) + ' · ' + r.bpm + ' BPM</b> con ' + esc(r.instruments.map(nameOf).join(', ')) + '. ' +
     'Se van sumando al subir el BPM: ' + esc(r.instruments.map((id) => nameOf(id) + (settings[id].in[0] > MIN ? ' ' + settings[id].in[0] : '')).join(' → ')) + '. ' +
-    esc(note) + (keyNote ? 'Tono ' + (keyNote > 0 ? '+' : '') + keyNote + '. ' : '') + 'Escúchala y, si te gusta, <b>guárdala</b> abajo.';
+    esc(note) + (keyNote ? 'Tono ' + (keyNote > 0 ? '+' : '') + keyNote + '. ' : '') + '<b>Guardada en Mis listas</b> como «' + esc(name) + '»: es música original, lista para pasar al Repositorio.';
   $('aiGo').disabled = false; $('aiGo').textContent = 'Crear música';
   if (!playing && engine) await start();
 }
