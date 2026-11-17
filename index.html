@@ -230,6 +230,11 @@ ul.how b { color: var(--ink); font-weight: 600; }
 .rt-list .x { margin-left: auto; min-height: 30px; min-width: 30px; padding: 0; }
 .rt-foot { display: flex; flex-wrap: wrap; gap: 8px 14px; align-items: center; }
 .rt-now { color: var(--lime); font-size: 13px; }
+.seqbar { flex: 1 1 100%; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.seqbar input[type=range] { flex: 1 1 160px; min-width: 0; accent-color: var(--lime); }
+.seqt { font: 600 13px var(--font-num); font-variant-numeric: tabular-nums; min-width: 3.5ch; }
+.seqbar .note { flex: 1 1 100%; }
+.rt-list li { cursor: pointer; }
 .bpmstep { min-width: 34px; min-height: 34px; padding: 0; border-radius: 99px; font-size: 18px; font-weight: 700; line-height: 1; flex: none; }
 .mixlist { display: block; border: 1px solid var(--line); border-radius: 12px; overflow: hidden; }
 .mixlist > p { margin: 0; padding: 14px; }
@@ -453,6 +458,14 @@ ul.how b { color: var(--ink); font-weight: 600; }
       <span id="phase" class="phase">Spa</span>
     </div>
     <span id="status" class="status" role="status">Conectando…</span>
+    <div id="seqBar" class="seqbar" hidden>
+      <button id="seqPrev" type="button" class="bpmstep" aria-label="Tramo anterior">⏮</button>
+      <span id="seqNow" class="seqt">0:00</span>
+      <input id="seek" type="range" min="0" max="100" step="1" value="0" aria-label="Línea de tiempo">
+      <span id="seqTot" class="seqt">0:00</span>
+      <button id="seqNext" type="button" class="bpmstep" aria-label="Tramo siguiente">⏭</button>
+      <span id="seqLabel" class="note"></span>
+    </div>
   </section>
     <section id="routineBox" class="rbox" aria-label="Rutinas de entrenamiento">
       <div class="rbox-head">
@@ -497,7 +510,7 @@ ul.how b { color: var(--ink); font-weight: 600; }
   <details id="adv" class="adv" open>
   <summary><span>Editor secuencial</span><small>Instrumentos por BPM, ajustes finos, tus loops y archivos</small></summary>
   <div class="adv-body">
-  <div class="row adv-top"><p class="note" id="advNote">Cada fila es un instrumento. La parte verde es el rango de BPM en el que suena: arrastra sus bordes para que entre antes o después.</p>
+  <div class="row adv-top"><p class="note" id="advNote">Cada fila es un instrumento. La parte verde es el rango de BPM en el que suena: arrastra sus bordes para que entre antes o después. La línea blanca es dónde vas: arrástrala (o haz clic en la regla de BPM) para adelantar o retroceder.</p>
   <label class="chk"><input type="checkbox" id="showAll"> Ver todo el kit</label></div>
   <div class="map">
     <canvas id="grid" tabindex="0" aria-label="Mapa de instrumentos por BPM. Usa los campos de abajo para cambiar los valores con el teclado."></canvas>
@@ -814,7 +827,7 @@ class Engine {
 
 // ---- Audio: blocks rendered just ahead of the clock ----
 let ctx = null, engine = null, samples = null, master = null, echoIn = null, echoDelay = null, echoFb = null, timer = null, nextTime = 0, playing = false;
-let mode = 'fixed', journeyStart = 0, fixedBpm = 90;
+let mode = 'fixed', journeyStart = 0, fixedBpm = 90, seekT = 0;
 let routine = [{ from: 90, to: 120, min: 3 }, { from: 120, to: 130, min: 3 }, { from: 130, to: 100, min: 2 }];
 try { const r = JSON.parse(localStorage.getItem('mezcladorrr.rutina')); if (Array.isArray(r) && r.length) routine = r; } catch (e) {}
 const rtTotalSec = () => routine.reduce((a, x) => a + Math.max(0, +x.min || 0) * 60, 0);
@@ -846,18 +859,60 @@ async function loadKit() {
   engine = new Engine(ctx.sampleRate, samples);
   for (const l of loops) engine.addLoop(l);
 }
-function currentBpm() {
-  if (mode === 'routine') {
-    const r = routineAt(Math.max(0, ctx.currentTime - journeyStart));
-    if (r.done) setTimeout(stop, 0);
-    return Math.max(MIN, Math.min(MAX, r.bpm));
-  }
-  if (mode === 'journey') {
-    const t = Math.max(0, ctx.currentTime - journeyStart);
-    if (t >= JOURNEY.seconds) { setTimeout(stop, 0); return JOURNEY.to; }
-    return Math.round(JOURNEY.from + ((JOURNEY.to - JOURNEY.from) * t) / JOURNEY.seconds);
-  }
+// Where we are in a sequence (Recorrido or Rutina), in seconds.
+const seqTotal = () => mode === 'routine' ? rtTotalSec() : mode === 'journey' ? JOURNEY.seconds : 0;
+const seqTime = () => playing && ctx ? Math.max(0, ctx.currentTime - journeyStart) : seekT;
+function bpmAt(t) {
+  if (mode === 'routine') return Math.max(MIN, Math.min(MAX, routineAt(t).bpm));
+  if (mode === 'journey') return Math.round(JOURNEY.from + ((JOURNEY.to - JOURNEY.from) * Math.min(t, JOURNEY.seconds)) / JOURNEY.seconds);
   return fixedBpm;
+}
+let ending = false;
+function currentBpm() {
+  if (mode === 'fixed') return fixedBpm;
+  const t = seqTime();
+  if (t >= seqTotal() && !ending) { ending = true; setTimeout(() => { stop(); seekT = 0; ending = false; frame(); }, 0); }
+  return bpmAt(Math.min(t, seqTotal()));
+}
+function seekTo(t) {
+  if (mode === 'fixed') return;
+  t = Math.max(0, Math.min(seqTotal() - 0.5, t));
+  if (playing) { journeyStart = ctx.currentTime - t; engine.setBpm(bpmAt(t)); } else seekT = t;
+  frame();
+}
+// The BPM a sequence first reaches (dragging the playhead in the editor).
+function timeOfBpm(b) {
+  if (mode === 'journey') return ((b - JOURNEY.from) / (JOURNEY.to - JOURNEY.from)) * JOURNEY.seconds;
+  let acc = 0;
+  for (const x of routine) {
+    const d = Math.max(0, +x.min || 0) * 60, lo = Math.min(x.from, x.to), hi = Math.max(x.from, x.to);
+    if (b >= lo && b <= hi) return acc + (x.to === x.from ? 0 : ((b - x.from) / (x.to - x.from)) * d);
+    acc += d;
+  }
+  return null;
+}
+function tramoStarts() { const out = []; let acc = 0; for (const x of routine) { out.push(acc); acc += Math.max(0, +x.min || 0) * 60; } return out; }
+function jumpTramo(dir) {
+  const t = seqTime();
+  if (mode === 'journey') return seekTo(t + dir * 15);
+  const st = tramoStarts();
+  if (dir > 0) { const n = st.find((x) => x > t + 0.5); if (n != null) seekTo(n); }
+  else { const prev = st.filter((x) => x < t - 2); seekTo(prev.length ? prev[prev.length - 1] : 0); }
+}
+let seeking = false;
+$('seek').addEventListener('pointerdown', () => { seeking = true; });
+$('seek').addEventListener('input', (e) => { seekTo((Number(e.target.value) / 1000) * seqTotal()); });
+for (const ev of ['pointerup', 'pointercancel', 'change']) $('seek').addEventListener(ev, () => { seeking = false; });
+$('seqPrev').addEventListener('click', () => jumpTramo(-1));
+$('seqNext').addEventListener('click', () => jumpTramo(1));
+function seqUi() {
+  const on = mode !== 'fixed'; $('seqBar').hidden = !on; if (!on) return;
+  const tot = seqTotal(), t = Math.min(seqTime(), tot);
+  if (!seeking) { $('seek').max = 1000; $('seek').value = tot ? Math.round((t / tot) * 1000) : 0; }
+  $('seqNow').textContent = fmtT(t); $('seqTot').textContent = fmtT(tot);
+  const r = mode === 'routine' ? routineAt(t) : null;
+  $('seqPrev').setAttribute('aria-label', mode === 'routine' ? 'Tramo anterior' : 'Atrás 15 s'); $('seqNext').setAttribute('aria-label', mode === 'routine' ? 'Tramo siguiente' : 'Adelante 15 s');
+  $('seqLabel').textContent = mode === 'routine' ? (r && !r.done ? 'Rutina · tramo ' + (r.i + 1) + ' de ' + routine.length : 'Rutina') + ' · arrastra la línea o usa ⏮ ⏭ para saltar de tramo' : 'Recorrido 45 → 215 · arrastra la línea para adelantar o retroceder';
 }
 function pump() {
   while (nextTime < ctx.currentTime + AHEAD) {
@@ -884,7 +939,7 @@ async function start() {
   echoIn.connect(echoDelay); echoDelay.connect(echoFb); echoFb.connect(echoDelay); echoDelay.connect(master);
   applyEchoMaster();
   engine.step = 0; engine.toNext = 0;
-  if (mode === 'journey' || mode === 'routine') journeyStart = ctx.currentTime + 0.05;
+  if (mode === 'journey' || mode === 'routine') { if (seekT >= seqTotal() - 0.5) seekT = 0; journeyStart = ctx.currentTime + 0.05 - seekT; }
   engine.setBpm(currentBpm(), true);
   nextTime = ctx.currentTime + 0.05;
   playing = true; pump(); timer = setInterval(pump, 40);
@@ -893,6 +948,7 @@ async function start() {
 }
 function stop() {
   if (!playing) return;
+  if (mode !== 'fixed') seekT = Math.max(0, ctx.currentTime - journeyStart);
   playing = false; clearInterval(timer);
   const m = master; m.gain.setTargetAtTime(0, ctx.currentTime, 0.05); setTimeout(() => m.disconnect(), 400);
   for (const l of [...engine.layers, ...engine.loopLayers]) for (const v of l.voices) v.data = null;
@@ -900,11 +956,12 @@ function stop() {
   if ($('rtPlay')) $('rtPlay').textContent = '▶ Probar rutina';
   draw();
 }
-function shownBpm() { return playing ? (mode !== 'fixed' ? currentBpm() : fixedBpm) : mode === 'journey' ? JOURNEY.from : mode === 'routine' ? (routine[0]?.from ?? fixedBpm) : fixedBpm; }
+function shownBpm() { return mode === 'fixed' ? fixedBpm : playing ? currentBpm() : bpmAt(seekT); }
 function frame() {
   const bpm = shownBpm();
   $('bpmOut').textContent = bpm; if (mode !== 'fixed') $('bpm').value = bpm;
   if (mode === 'routine') routineNow();
+  seqUi();
   $('phase').textContent = bpm < 100 ? 'Spa' : bpm < 150 ? 'Ritmo' : 'Techno';
   if (bpm !== deskBpmShown && typeof refreshDesk === 'function' && !$('pageMesa').hidden) refreshDesk();
   draw();
@@ -940,7 +997,7 @@ function updateAdv() {
   if (rows.length && !rows.some((r) => r.id === selected) && typeof fill === 'function') { selected = rows[0].id; try { fill(); } catch {} }
   $('advNote').textContent = focus && focus.length && !showAll
     ? 'Aquí están los ' + n + ' instrumentos de tu mezcla. Se desbloquean uno a uno al subir el BPM: los que tienen 🔒 todavía no suenan y muestran el BPM en que entran. Arrastra los bordes de la parte verde para cambiarlo.'
-    : 'Cada fila es un instrumento. La parte verde es el rango de BPM en el que suena: arrastra sus bordes para que entre antes o después.';
+    : 'Cada fila es un instrumento. La parte verde es el rango de BPM en el que suena: arrastra sus bordes para que entre antes o después. La línea blanca es dónde vas: arrástrala (o haz clic en la regla de BPM) para adelantar o retroceder.';
 }
 const xOf = (bpm) => L.label + ((bpm - MIN) / (MAX - MIN)) * L.plotW;
 const bpmOf = (x) => Math.round(Math.min(MAX, Math.max(MIN, MIN + ((x - L.label) / L.plotW) * (MAX - MIN))));
@@ -996,6 +1053,8 @@ function draw() {
   const px = Math.round(xOf(now)) + 0.5;
   g2.strokeStyle = playing ? ink : 'rgba(243,244,237,0.4)'; g2.lineWidth = 2;
   g2.beginPath(); g2.moveTo(px, L.top - 6); g2.lineTo(px, L.axisY - 8); g2.stroke();
+  g2.fillStyle = playing ? ink : 'rgba(243,244,237,0.6)';
+  g2.beginPath(); g2.moveTo(px - 6, L.top - 12); g2.lineTo(px + 6, L.top - 12); g2.lineTo(px, L.top - 4); g2.closePath(); g2.fill();
 }
 
 // Dragging the edges of the green part.
@@ -1006,8 +1065,19 @@ function hit(ev) {
   const row = rows.find((w) => y >= w.y && y < w.y + L.row - 3);
   return { x, y, row };
 }
+let headDrag = false;
+function seekToBpmX(x) {
+  const b = bpmOf(x);
+  if (mode === 'fixed') { fixedBpm = b; $('bpm').value = b; frame(); saveOpenMix(); return; }
+  const t = timeOfBpm(b); if (t != null) seekTo(t);
+}
 canvas.addEventListener('pointerdown', (ev) => {
-  const { x, row } = hit(ev);
+  const { x, y, row } = hit(ev);
+  const px = xOf(shownBpm());
+  const onHandle = row && handlesOf(settings[row.id]).some((b) => Math.abs(xOf(b) - x) < 7);
+  if (x > L.label && ((!row && (y < L.top + 4 || y > L.axisY - 24)) || (Math.abs(x - px) <= 6 && !onHandle))) {
+    headDrag = true; canvas.setPointerCapture(ev.pointerId); seekToBpmX(x); return;
+  }
   if (!row) return;
   if (x >= L.label - 34 && x <= L.label - 8) { toggleMute(row.id); return; }
   select(row.id);
@@ -1026,12 +1096,14 @@ canvas.addEventListener('pointerdown', (ev) => {
   moveHandle(bpmOf(x));
 });
 canvas.addEventListener('pointermove', (ev) => {
-  const { x, row } = hit(ev);
+  const { x, y, row } = hit(ev);
+  if (headDrag) { seekToBpmX(x); return; }
   if (drag) { moveHandle(bpmOf(x)); return; }
+  if (x > L.label && (Math.abs(x - xOf(shownBpm())) <= 6 || (!row && (y < L.top + 4 || y > L.axisY - 24)))) { canvas.style.cursor = 'col-resize'; return; }
   const near = row && x > L.label && handlesOf(settings[row.id]).some((b) => Math.abs(xOf(b) - x) < 14);
   canvas.style.cursor = near ? 'ew-resize' : row && x >= L.label - 34 && x <= L.label - 8 ? 'pointer' : 'default';
 });
-const endDrag = () => { if (!drag) return; const s = settings[drag.id]; if (s.out && s.out[0] >= MAX) s.out = null; drag = null; changed(); };
+const endDrag = () => { headDrag = false; if (!drag) return; const s = settings[drag.id]; if (s.out && s.out[0] >= MAX) s.out = null; drag = null; changed(); };
 canvas.addEventListener('pointerup', endDrag);
 canvas.addEventListener('pointercancel', endDrag);
 function moveHandle(b) {
@@ -1099,7 +1171,7 @@ $('play').addEventListener('click', async () => {
 });
 function setMode(m) {
   if (playing) stop();
-  mode = m;
+  mode = m; seekT = 0;
   $('modeFixed').setAttribute('aria-pressed', String(m === 'fixed'));
   $('modeJourney').setAttribute('aria-pressed', String(m === 'journey'));
   $('bpm').disabled = m !== 'fixed';
@@ -1128,6 +1200,8 @@ function renderRoutine() {
     li.append(t('De'), num('from', MIN, MAX, 1, 'BPM inicial'), t('a'), num('to', MIN, MAX, 1, 'BPM final'), t('BPM en'), num('min', 0.5, 60, 0.5, 'Minutos'), t('min'));
     if (routine.length > 1) { const x2 = document.createElement('button'); x2.type = 'button'; x2.className = 'x'; x2.textContent = '✕'; x2.setAttribute('aria-label', 'Quitar tramo ' + (i + 1));
       x2.addEventListener('click', () => { routine.splice(i, 1); renderRoutine(); routineChanged(); }); li.appendChild(x2); }
+    li.addEventListener('click', (e) => { if (e.target.closest('input,button')) return; if (mode !== 'routine') setMode('routine'); seekTo(tramoStarts()[i] || 0); });
+    li.title = 'Clic para saltar a este tramo';
     ol.appendChild(li);
   });
   routineChanged();
@@ -1135,10 +1209,10 @@ function renderRoutine() {
 $('rtAdd').addEventListener('click', () => { const last = routine[routine.length - 1]; const f = last ? last.to : fixedBpm; routine.push({ from: f, to: Math.min(MAX, f + 10), min: 3 }); renderRoutine(); });
 let rtShown = -2;
 function routineNow() {
-  const r = playing ? routineAt(Math.max(0, ctx.currentTime - journeyStart)) : null;
+  const r = mode === 'routine' ? routineAt(seqTime()) : null;
   const i = r ? r.i : -1;
   if (i !== rtShown) { rtShown = i; [...$('rtList').children].forEach((li, k) => li.classList.toggle('now', k === i)); }
-  $('rtNow').textContent = r && !r.done ? 'Tramo ' + (i + 1) + ' de ' + routine.length + ' · quedan ' + fmtT(r.left) + ' · total ' + fmtT(rtTotalSec() - Math.max(0, ctx.currentTime - journeyStart)) : 'Pulsa "Probar rutina" para escucharla.';
+  $('rtNow').textContent = r && !r.done ? 'Tramo ' + (i + 1) + ' de ' + routine.length + ' · quedan ' + fmtT(r.left) + ' · total ' + fmtT(rtTotalSec() - seqTime()) + (playing ? '' : ' (en pausa)') : 'Pulsa "Probar rutina" para escucharla.';
 }
 // ---- Saved routines and the Repositorio ----
 let routines = [], rtEditId = null;
