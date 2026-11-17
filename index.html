@@ -289,6 +289,24 @@ ul.how b { color: var(--ink); font-weight: 600; }
 .src-pick button span:last-child { display: grid; }
 .src-pick button small { font-weight: 400; font-size: 12px; color: var(--muted); }
 .src-pick button[aria-pressed="true"] { border-color: var(--lime); background: #26301b; }
+.pick { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.pick button { display: grid; gap: 3px; text-align: left; padding: 14px 16px; border-radius: 14px; min-height: 70px; }
+.pick button b { font-size: 16px; }
+.pick button small { font-weight: 400; font-size: 12.5px; color: var(--muted); }
+.pick button[aria-pressed="true"] { border-color: var(--lime); background: #26301b; box-shadow: 0 0 0 1px var(--lime) inset; }
+@media (max-width: 620px) { .pick { grid-template-columns: 1fr; } }
+.pane { display: grid; gap: 14px; }
+.pane[hidden] { display: none; }
+.styles { display: grid; gap: 10px; padding: 18px 22px; border: 1px solid var(--border); border-radius: 16px; background: var(--panel); }
+.styles h2 { font-size: 16px; }
+.styles button[aria-pressed="true"] { background: var(--lime); color: var(--on-lime); border-color: var(--lime); }
+.savebar { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 14px; padding: 16px 18px; border: 1px solid var(--border); border-radius: 16px; background: var(--panel); }
+.savebar > div { flex: 1 1 260px; display: grid; gap: 2px; }
+.savebar .note button { margin-left: 6px; min-height: 32px; }
+.savebar input { flex: 1 1 200px; min-width: 0; font: 500 15px var(--font-body); color: var(--ink); background: #141a0f; border: 1px solid #4b573c; border-radius: 10px; padding: 8px 12px; min-height: 44px; }
+.savebar button.primary { min-height: 44px; padding: 0 26px; }
+.savebar.ready { border-color: var(--lime); }
+.sec-title { font-size: 18px; margin: 8px 0 -4px; }
 @media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
 </style>
 </head>
@@ -298,15 +316,24 @@ ul.how b { color: var(--ink); font-weight: 600; }
     <span class="eyebrow">RadioRun · Adaptive music</span>
     <h1>Mezclador <span>RadioRun</span></h1>
     <nav class="tabs" aria-label="Secciones">
-      <a href="#pista" id="tabPista" aria-current="page">Pista</a>
-      <a href="#mesa" id="tabMesa">Mesa mezcladora</a>
-      <a href="#fuentes" id="tabFuentes">Música libre</a>
+      <a href="#crear" id="tabPista" aria-current="page">1 · Crear música</a>
+      <a href="#listas" id="tabMesa">2 · Mis listas</a>
     </nav>
   </header>
   <div id="pagePista" class="page">
+    <div class="pick" role="group" aria-label="Cómo quieres crear tu música">
+      <button type="button" id="pickElegir" aria-pressed="true"><b>Elegir la música</b><small>Un estilo o un músico que te guste</small></button>
+      <button type="button" id="pickTraer" aria-pressed="false"><b>Traer de otra plataforma</b><small>Canciones libres de Incompetech y Jamendo</small></button>
+    </div>
+    <div id="paneElegir" class="pane">
+    <section class="styles" aria-labelledby="stylesTitle">
+      <h2 id="stylesTitle">Elige un estilo de música</h2>
+      <div id="styleChips" class="src-filters"></div>
+    </section>
   <div id="pistaTop">
     <form id="ai" class="ai" autocomplete="off">
       <label for="aiText" class="hero-q">¿Qué quieres escuchar?</label>
+      <span class="note">Escribe un músico que te guste, una canción o un estilo.</span>
       <div class="row">
         <input id="aiText" type="text" maxlength="300" placeholder="Un artista (p. ej. Gepe), una canción, un género o un link de YouTube">
         <button id="aiGo" class="primary" type="submit" disabled>Crear música</button>
@@ -316,7 +343,53 @@ ul.how b { color: var(--ink); font-weight: 600; }
       <p id="aiResult" class="result" role="status">Una IA (Claude) crea una mezcla original con los sonidos del kit, inspirada en lo que le gusta. No copia ni descarga la canción: de un link de YouTube solo lee el título.</p>
     </form>
   </div>
-
+    </div>
+    <div id="paneTraer" class="pane" hidden>
+    <section class="src-hero inc-hero">
+      <h2>Traer música de otra plataforma</h2>
+      <p>Canciones que puedes usar sin problemas de derechos: las escuchas aquí mismo y las llevas a tu mezcla con un clic. Solo hay que nombrar al autor, y la app guarda ese crédito por ti.</p>
+      <div class="src-pick" role="group" aria-label="Fuente">
+        <button type="button" data-src="inc" aria-pressed="true"><span class="src-ico" style="background:#c79bff">I</span><span><b>Incompetech</b><small>Kevin MacLeod · 1.400 temas · CC BY 4.0</small></span></button>
+        <button type="button" data-src="ov" aria-pressed="false"><span class="src-ico" style="background:#7ed6a5">J</span><span><b>Jamendo y más</b><small>Artistas independientes vía Openverse · CC BY, BY-SA y CC0</small></span></button>
+      </div>
+      <dl class="inc-facts">
+        <div><dt>Nombrar al autor</dt><dd>Sí (salvo CC0)</dd></div>
+        <div><dt>Uso comercial</dt><dd>Sí</dd></div>
+        <div><dt>Remezclar</dt><dd>Sí</dd></div>
+      </dl>
+    </section>
+    <section class="free inc-lib" aria-labelledby="incTitle">
+      <div class="free-head">
+        <h2 id="incTitle">Biblioteca</h2>
+        <span class="note" id="incCount">Cargando el catálogo…</span>
+      </div>
+      <form id="incForm" class="row" autocomplete="off">
+        <input id="incQ" type="search" placeholder="Busca por nombre o instrumento: piano, guitar, drums…" aria-label="Buscar música libre">
+        <button class="primary" type="submit">Buscar</button>
+      </form>
+      <div class="src-filters" id="incGenres" role="group" aria-label="Género"></div>
+      <div class="src-filters" id="incFeels" role="group" aria-label="Ánimo"></div>
+      <div class="src-filters" id="incTempo" role="group" aria-label="Ritmo">
+        <button type="button" data-t="all" aria-pressed="true">Cualquier ritmo</button>
+        <button type="button" data-t="slow" aria-pressed="false">Lento (menos de 100 BPM)</button>
+        <button type="button" data-t="mid" aria-pressed="false">Para trotar (100 a 140)</button>
+        <button type="button" data-t="fast" aria-pressed="false">Para correr (más de 140)</button>
+      </div>
+      <div id="incList" class="freelist"></div>
+      <div class="row"><button type="button" id="incMore" hidden>Ver más</button></div>
+    </section>
+    <section class="src-guide" aria-labelledby="credTitle">
+      <h2 id="credTitle">Cómo dar crédito</h2>
+      <p class="note">Donde publiques algo con estos temas (la descripción de un video, la pantalla de créditos de la app), nombra el tema, el autor y la licencia. Para Incompetech:</p>
+      <p class="cred-box"><b>«Título del tema» Kevin MacLeod (incompetech.com)</b><br>Licensed under Creative Commons: By Attribution 4.0<br>https://creativecommons.org/licenses/by/4.0/</p>
+      <p class="note">Para Jamendo y las otras fuentes: <b>«Título» de Autor</b>, la licencia (por ejemplo CC BY 3.0) y el enlace al tema. Si es <b>CC BY-SA</b>, lo que publiques con ese tema debe compartirse con la misma licencia.</p>
+      <ul class="tips">
+        <li>Cada tema que agregas a una mezcla queda con su crédito en <b>Tus loops</b> y en <b>Mis listas</b>.</li>
+        <li>Si alguna vez no puedes poner el crédito, Incompetech vende una licencia que lo evita. <a href="https://incompetech.com/music/royalty-free/faq.html" target="_blank" rel="noopener">Preguntas frecuentes ↗</a></li>
+        <li>Esta guía es orientativa, no es asesoría legal.</li>
+      </ul>
+    </section>
+    </div>
   <section id="transport" class="transport" aria-label="Reproducción">
     <button id="play" class="primary" aria-pressed="false" disabled>Cargando…</button>
     <div class="seg" role="group" aria-label="Modo">
@@ -330,13 +403,29 @@ ul.how b { color: var(--ink); font-weight: 600; }
     </div>
     <span id="status" class="status" role="status">Conectando…</span>
   </section>
-
-    <section class="mixes" aria-labelledby="mixesTitle">
-      <h2 id="mixesTitle">Mis mezclas</h2>
-      <div id="mixListPista" class="mixlist"></div>
+    <section id="saveBar" class="savebar" aria-live="polite">
+      <div><b id="saveTitle2">Guardar en Mis listas</b><span id="saveNote" class="note">Crea o trae una música y guárdala aquí para modificarla después.</span></div>
+      <input id="saveName" type="text" maxlength="60" placeholder="Nombre de tu música" aria-label="Nombre de tu música">
+      <button id="saveMix" type="button" class="primary" disabled>Guardar</button>
     </section>
+  </div>
 
-  <details id="adv" class="adv">
+  <div id="pageMesa" class="page" hidden>
+    <p class="sub">Elige una de tus músicas guardadas y modifícala: arriba la <b>Mesa mezcladora</b> (volumen, tono, graves, agudos, eco de cada instrumento) y abajo el <b>Editor avanzado</b> (en qué BPM entra cada instrumento).</p>
+    <section class="mixes" aria-label="Mis listas">
+      <h2>Mis listas</h2>
+      <div id="mixListMesa" class="mixlist"></div>
+    </section>
+    <div id="transportSlot"></div>
+    <h2 class="sec-title">Mesa mezcladora</h2>
+    <div class="desk-bar">
+      <span class="note" id="deskNote"></span>
+      <label class="chk"><input type="checkbox" id="showAllMesa"> Mostrar canales apagados</label>
+    </div>
+    <div id="desk" class="desk" aria-label="Canales"></div>
+    <section id="deskEdit" class="desk-edit" aria-live="polite"></section>
+    <div class="row"><button id="deskReset">Restablecer la mesa</button></div>
+  <details id="adv" class="adv" open>
   <summary><span>Editor avanzado</span><small>Instrumentos por BPM, ajustes finos, tus loops y archivos</small></summary>
   <div class="adv-body">
   <div class="row adv-top"><p class="note" id="advNote">Cada fila es un instrumento. La parte verde es el rango de BPM en el que suena: arrastra sus bordes para que entre antes o después.</p>
@@ -407,80 +496,6 @@ ul.how b { color: var(--ink); font-weight: 600; }
   </section>
   </div>
   </details>
-  </div>
-
-  <div id="pageMesa" class="page" hidden>
-    <p class="sub">Cada canal es un instrumento de tu mezcla. Dale <b>Play</b> y sube o baja el volumen de cada uno. <b>M</b> lo apaga y <b>S</b> deja solo ese. Para cambiar su sonido (izquierda/derecha, tono, graves, agudos, eco), toca <b>Ajustar</b>.</p>
-    <div id="transportSlot"></div>
-    <div class="desk-bar">
-      <span class="note" id="deskNote"></span>
-      <label class="chk"><input type="checkbox" id="showAllMesa"> Mostrar canales apagados</label>
-    </div>
-    <div id="desk" class="desk" aria-label="Canales"></div>
-    <section id="deskEdit" class="desk-edit" aria-live="polite"></section>
-    <div class="row"><button id="deskReset">Restablecer la mesa</button></div>
-    <section class="mixes" aria-label="Mis mezclas">
-      <h2>Mis mezclas</h2>
-      <div id="mixListMesa" class="mixlist"></div>
-    </section>
-    <section class="free" aria-labelledby="freeTitle">
-      <div class="free-head">
-        <h2 id="freeTitle">Música libre</h2>
-        <span class="note">Temas de Incompetech (Kevin MacLeod) y de Jamendo y otras fuentes vía Openverse, con licencias que permiten mezclar y uso comercial nombrando al autor. El crédito queda guardado con cada tema.</span>
-      </div>
-      <form id="freeForm" class="row" autocomplete="off">
-        <input id="freeQ" type="search" placeholder="Busca por nombre, ánimo o instrumento: piano, rock, alegre…" aria-label="Buscar en Incompetech">
-        <button class="primary" type="submit">Buscar</button>
-      </form>
-      <div id="freeList" class="freelist"></div>
-    </section>
-  </div>
-
-  <div id="pageFuentes" class="page" hidden>
-    <section class="src-hero inc-hero">
-      <h2>Música libre para tus mezclas</h2>
-      <p>Canciones que puedes usar sin problemas de derechos: las escuchas aquí mismo y las llevas a tu mezcla con un clic. Solo hay que nombrar al autor, y la app guarda ese crédito por ti.</p>
-      <div class="src-pick" role="group" aria-label="Fuente">
-        <button type="button" data-src="inc" aria-pressed="true"><span class="src-ico" style="background:#c79bff">I</span><span><b>Incompetech</b><small>Kevin MacLeod · 1.400 temas · CC BY 4.0</small></span></button>
-        <button type="button" data-src="ov" aria-pressed="false"><span class="src-ico" style="background:#7ed6a5">J</span><span><b>Jamendo y más</b><small>Artistas independientes vía Openverse · CC BY, BY-SA y CC0</small></span></button>
-      </div>
-      <dl class="inc-facts">
-        <div><dt>Nombrar al autor</dt><dd>Sí (salvo CC0)</dd></div>
-        <div><dt>Uso comercial</dt><dd>Sí</dd></div>
-        <div><dt>Remezclar</dt><dd>Sí</dd></div>
-      </dl>
-    </section>
-    <section class="free inc-lib" aria-labelledby="incTitle">
-      <div class="free-head">
-        <h2 id="incTitle">Biblioteca</h2>
-        <span class="note" id="incCount">Cargando el catálogo…</span>
-      </div>
-      <form id="incForm" class="row" autocomplete="off">
-        <input id="incQ" type="search" placeholder="Busca por nombre o instrumento: piano, guitar, drums…" aria-label="Buscar música libre">
-        <button class="primary" type="submit">Buscar</button>
-      </form>
-      <div class="src-filters" id="incGenres" role="group" aria-label="Género"></div>
-      <div class="src-filters" id="incFeels" role="group" aria-label="Ánimo"></div>
-      <div class="src-filters" id="incTempo" role="group" aria-label="Ritmo">
-        <button type="button" data-t="all" aria-pressed="true">Cualquier ritmo</button>
-        <button type="button" data-t="slow" aria-pressed="false">Lento (menos de 100 BPM)</button>
-        <button type="button" data-t="mid" aria-pressed="false">Para trotar (100 a 140)</button>
-        <button type="button" data-t="fast" aria-pressed="false">Para correr (más de 140)</button>
-      </div>
-      <div id="incList" class="freelist"></div>
-      <div class="row"><button type="button" id="incMore" hidden>Ver más</button></div>
-    </section>
-    <section class="src-guide" aria-labelledby="credTitle">
-      <h2 id="credTitle">Cómo dar crédito</h2>
-      <p class="note">Donde publiques algo con estos temas (la descripción de un video, la pantalla de créditos de la app), nombra el tema, el autor y la licencia. Para Incompetech:</p>
-      <p class="cred-box"><b>«Título del tema» Kevin MacLeod (incompetech.com)</b><br>Licensed under Creative Commons: By Attribution 4.0<br>https://creativecommons.org/licenses/by/4.0/</p>
-      <p class="note">Para Jamendo y las otras fuentes: <b>«Título» de Autor</b>, la licencia (por ejemplo CC BY 3.0) y el enlace al tema. Si es <b>CC BY-SA</b>, lo que publiques con ese tema debe compartirse con la misma licencia.</p>
-      <ul class="tips">
-        <li>Cada tema que agregas a una mezcla queda con su crédito en <b>Tus loops</b> y en <b>Mis mezclas</b>.</li>
-        <li>Si alguna vez no puedes poner el crédito, Incompetech vende una licencia que lo evita. <a href="https://incompetech.com/music/royalty-free/faq.html" target="_blank" rel="noopener">Preguntas frecuentes ↗</a></li>
-        <li>Esta guía es orientativa, no es asesoría legal.</li>
-      </ul>
-    </section>
   </div>
 </div>
 
@@ -1418,13 +1433,13 @@ async function openMixById(id, then) {
   fixedBpm = m.bpm || fixedBpm; $('bpm').value = fixedBpm;
   if (mode !== 'fixed') setMode('fixed');
   live(); fill(); draw(); frame(); changed(); renderMixes();
-  if (then === 'mesa') { pageNow = 'mesa'; try { history.replaceState(null, '', '#mesa'); } catch {} showPage(); }
+  if (then === 'mesa') { pageNow = 'mesa'; try { history.replaceState(null, '', '#listas'); } catch {} showPage(); }
   else if (!$('pageMesa').hidden) buildDesk();
 }
 function renderMixes() {
-  for (const boxId of ['mixListPista', 'mixListMesa']) {
+  for (const boxId of ['mixListMesa']) {
     const box = $(boxId); box.innerHTML = '';
-    if (!mixes.length) { box.innerHTML = '<p class="note">Todavía no hay mezclas. Escribe un artista o un estilo y pulsa <b>Crear música</b>: cada mezcla queda aquí.</p>'; continue; }
+    if (!mixes.length) { box.innerHTML = '<p class="note">Todavía no hay músicas guardadas. Ve a <b>1 · Crear música</b>, crea o trae una música y pulsa <b>Guardar</b>: aparece aquí.</p>'; continue; }
     for (const m of mixes) {
       const row = document.createElement('div'); row.className = 'mixitem' + (m.id === openMix ? ' open' : '');
       const when = new Date(m.created).toLocaleString('es', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
@@ -1434,7 +1449,7 @@ function renderMixes() {
       const acts = document.createElement('div'); acts.className = 'acts'; row.appendChild(acts);
       const mk = (label, fn) => { const b = document.createElement('button'); b.type = 'button'; b.textContent = label; b.addEventListener('click', fn); acts.appendChild(b); return b; };
       mk('▶ Escuchar', async () => { stopPreview(); await openMixById(m.id); if (!playing && engine) await start(); }).className = 'go';
-      if (boxId === 'mixListPista') mk('Editar', async () => { openMixById(m.id, 'mesa'); });
+      mk(m.id === openMix ? '✓ Abierta' : 'Modificar', async () => { stopPreview(); await openMixById(m.id, 'mesa'); });
       const del = mk('Borrar', () => {
         if (del.dataset.sure) { mixes = mixes.filter((x) => x.id !== m.id); if (openMix === m.id) openMix = null; storeMixes(); renderMixes(); return; }
         del.dataset.sure = '1'; del.textContent = '¿Seguro?'; setTimeout(() => { if (del.isConnected) { delete del.dataset.sure; del.textContent = 'Borrar'; } }, 3000);
@@ -1501,13 +1516,13 @@ async function createMusic(text) {
   if (mode !== 'fixed') setMode('fixed');
   live(); fill(); draw(); frame(); changed();
   const name = (artistPick && plainName(text) === artistFor) ? artistPick.name : text.replace(/https?:\/\/\S+/g, '').trim() || 'Video de YouTube';
-  addMix(name, r.label, r.bpm);
+  setDraft(name, r.label);
   abState = { before, after: snapshot() };
   $('ab').hidden = false; $('abBefore').setAttribute('aria-pressed', 'false'); $('abAfter').setAttribute('aria-pressed', 'true');
   flashMap();
   $('aiResult').innerHTML = esc(source) + '<b>' + esc(r.label) + ' · ' + r.bpm + ' BPM</b> con ' + esc(r.instruments.map(nameOf).join(', ')) + '. ' +
     'Se van sumando al subir el BPM: ' + esc(r.instruments.map((id) => nameOf(id) + (settings[id].in[0] > MIN ? ' ' + settings[id].in[0] : '')).join(' → ')) + '. ' +
-    esc(note) + (keyNote ? 'Tono ' + (keyNote > 0 ? '+' : '') + keyNote + '. ' : '') + 'Quedó en <b>Mis mezclas</b>.';
+    esc(note) + (keyNote ? 'Tono ' + (keyNote > 0 ? '+' : '') + keyNote + '. ' : '') + 'Escúchala y, si te gusta, <b>guárdala</b> abajo.';
   $('aiGo').disabled = false; $('aiGo').textContent = 'Crear música';
   if (!playing && engine) await start();
 }
@@ -1787,19 +1802,17 @@ async function trackAdd(x, btn, row) {
     if (!ctx) await loadKit();
     const r = await fetch(x.src); if (!r.ok) throw new Error();
     const blob = await r.blob();
-    const fresh = !openMix;
+    // On Crear música a track starts a new music (a draft), unless one is already
+    // being made; on Mis listas it goes into the music that is open.
+    const fresh = !draft && (pageNow === 'pista' || !openMix);
+    if (fresh && openMix) { openMix = null; clearLoops(); renderLoops(); layout(); renderMixes(); }
     // A new mix takes the track's own tempo (when known), so it plays at its natural speed.
     if (fresh && x.b) { fixedBpm = Math.min(MAX, Math.max(MIN, x.b)); $('bpm').value = fixedBpm; if (mode !== 'fixed') setMode('fixed'); frame(); }
     ok = await addLoopFile(new File([blob], x.file), { name: x.t, bpm: x.b || fixedBpm, src: x.src, credit: x.credit });
-    if (ok && fresh) { focus = null; addMix(x.t, x.style, fixedBpm); }
+    if (ok && fresh) { focus = null; setDraft(x.t, x.style); }
   } catch {}
   if (!ok) { btn.disabled = false; btn.textContent = 'No se pudo traer. Reintentar'; return; }
   btn.textContent = '✓ En la mezcla';
-  if (!row.querySelector('.go-mesa') && $('pageMesa').hidden) {
-    const go = document.createElement('button'); go.type = 'button'; go.className = 'go-mesa'; go.textContent = 'Abrir en la Mesa →';
-    go.addEventListener('click', () => { pageNow = 'mesa'; try { history.replaceState(null, '', '#mesa'); } catch {} showPage(); });
-    row.appendChild(go);
-  }
 }
 function renderTracks(list, items, append = false) {
   if (!append) list.innerHTML = '';
@@ -1815,7 +1828,6 @@ async function searchFree() {
   if (!items.length) { list.innerHTML = '<p class="note">No encontré temas para «' + esc(q) + '». Prueba con un ánimo (alegre, épico, tranquilo) o un instrumento (piano, guitar, drums).</p>'; return; }
   renderTracks(list, items);
 }
-$('freeForm').addEventListener('submit', (e) => { e.preventDefault(); searchFree(); });
 // Spanish words to the English that the catalogs use.
 function englishQuery(q) {
   return fold(q).split(' ').filter(Boolean).map((w) => {
@@ -1888,27 +1900,70 @@ async function incOpen() {
 // ---- Sub-pages: #pista and #mesa. The transport (Play, BPM) goes with the one shown. ----
 // Tabs work by click (not only by the #hash), so they also work inside previews
 // that don't pass link clicks through.
-const PAGES = { pista: ['pagePista', 'tabPista'], mesa: ['pageMesa', 'tabMesa'], fuentes: ['pageFuentes', 'tabFuentes'] };
-const pageFromHash = () => (PAGES[location.hash.slice(1)] ? location.hash.slice(1) : 'pista');
+// Two pages: 1 · Crear música (#crear) and 2 · Mis listas (#listas), where a
+// saved music is edited in the Mesa mezcladora and the Editor avanzado.
+const PAGES = { pista: ['pagePista', 'tabPista'], mesa: ['pageMesa', 'tabMesa'] };
+const HASH = { pista: 'crear', mesa: 'listas' };
+const pageFromHash = () => ({ listas: 'mesa', mesa: 'mesa' }[location.hash.slice(1)] || 'pista');
 let pageNow = pageFromHash();
 function showPage() {
   for (const [name, [page, tab]] of Object.entries(PAGES)) {
     $(page).hidden = name !== pageNow;
     if (name === pageNow) $(tab).setAttribute('aria-current', 'page'); else $(tab).removeAttribute('aria-current');
   }
-  if (pageNow === 'mesa') { $('transportSlot').appendChild($('transport')); buildDesk(); requestAnimationFrame(meters); }
-  else if (pageNow === 'pista') { $('pistaTop').after($('transport')); layout(); draw(); }
-  else if (pageNow === 'fuentes') incOpen();
+  if (pageNow === 'mesa') { $('transportSlot').appendChild($('transport')); layout(); draw(); buildDesk(); requestAnimationFrame(meters); }
+  else { $('saveBar').before($('transport')); if (!$('paneTraer').hidden) incOpen(); }
 }
 for (const [name, [, tab]] of Object.entries(PAGES)) {
   $(tab).addEventListener('click', (e) => {
     e.preventDefault();
     pageNow = name; showPage();
-    try { history.replaceState(null, '', '#' + name); } catch {}
+    try { history.replaceState(null, '', '#' + HASH[name]); } catch {}
   });
 }
 $('adv').addEventListener('toggle', () => { if ($('adv').open) { layout(); draw(); } });
 window.addEventListener('hashchange', () => { pageNow = pageFromHash(); showPage(); });
+
+// Crear música: "Elegir la música" (a style or a musician) or "Traer de otra
+// plataforma" (free music libraries). They are separate, not mixed.
+function setPick(which) {
+  $('pickElegir').setAttribute('aria-pressed', String(which === 'elegir'));
+  $('pickTraer').setAttribute('aria-pressed', String(which === 'traer'));
+  $('paneElegir').hidden = which !== 'elegir';
+  $('paneTraer').hidden = which !== 'traer';
+  if (which === 'traer') incOpen();
+}
+$('pickElegir').addEventListener('click', () => setPick('elegir'));
+$('pickTraer').addEventListener('click', () => setPick('traer'));
+for (const [key, g] of Object.entries(Generador.GENRES)) {
+  const b = document.createElement('button'); b.type = 'button'; b.textContent = g.name; b.dataset.style = key; b.setAttribute('aria-pressed', 'false');
+  b.addEventListener('click', () => {
+    for (const o of $('styleChips').children) o.setAttribute('aria-pressed', String(o === b));
+    $('aiText').value = g.name; $('artist').hidden = true; createMusic(g.name);
+  });
+  $('styleChips').appendChild(b);
+}
+// The music made on this page is a draft until "Guardar" puts it in Mis listas.
+let draft = null;
+function setDraft(name, style) {
+  draft = { name, style };
+  $('saveName').value = name;
+  $('saveMix').disabled = false; $('saveMix').textContent = 'Guardar';
+  $('saveNote').textContent = 'Escúchala con Play. Si te gusta, ponle nombre y guárdala.';
+  $('saveBar').classList.add('ready');
+}
+$('saveMix').addEventListener('click', () => {
+  if (!draft) return;
+  const name = $('saveName').value.trim() || draft.name;
+  addMix(name, draft.style, fixedBpm);
+  draft = null;
+  $('saveMix').disabled = true; $('saveMix').textContent = '✓ Guardada';
+  $('saveBar').classList.remove('ready');
+  $('saveNote').innerHTML = '';
+  const go = document.createElement('button'); go.type = 'button'; go.textContent = 'Ir a Mis listas →';
+  go.addEventListener('click', () => { pageNow = 'mesa'; try { history.replaceState(null, '', '#listas'); } catch {} showPage(); });
+  $('saveNote').append('«' + name + '» quedó en Mis listas. ', go);
+});
 
 // ---- Start-up ----
 window.addEventListener('resize', () => { layout(); draw(); });
