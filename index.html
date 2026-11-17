@@ -213,6 +213,7 @@ ul.how b { color: var(--ink); font-weight: 600; }
 .rt-saved h3 { font-size: 14px; margin: 0; }
 .mixitem.simple { grid-template-columns: minmax(0, 1.4fr) minmax(0, 2fr) auto; }
 .pub { margin-top: 12px; }
+.panel[hidden] { display: none !important; }
 .nm input.rename { width: 100%; min-height: 32px; background: #11160d; color: var(--ink); border: 1px solid var(--lime); border-radius: 8px; padding: 0 8px; font: inherit; font-weight: 600; }
 .repo-key { margin-top: 12px; }
 .repo-row { display: flex; flex-wrap: wrap; gap: 8px 12px; align-items: center; }
@@ -568,7 +569,7 @@ ul.how b { color: var(--ink); font-weight: 600; }
     </section>
   </div>
 
-  <section class="panel" aria-labelledby="saveTitle">
+  <section class="panel" aria-labelledby="saveTitle" hidden>
     <h2 id="saveTitle">Guardar</h2>
     <p class="note"><b>Guardar</b> conserva la mezcla en este navegador y descarga <code>mix.json</code> para llevarla a la app.</p>
     <div class="row">
