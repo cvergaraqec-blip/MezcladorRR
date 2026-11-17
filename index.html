@@ -238,6 +238,9 @@ ul.how b { color: var(--ink); font-weight: 600; }
 .seqt { font: 600 13px var(--font-num); font-variant-numeric: tabular-nums; min-width: 3.5ch; }
 .seqbar .note { flex: 1 1 100%; }
 .rt-list li { cursor: pointer; }
+.sepbar { display: flex; flex-wrap: wrap; gap: 8px 12px; align-items: center; padding: 10px 12px; margin: 8px 0; border: 1px dashed #5d7240; border-radius: 12px; background: #161c11; font-size: 13px; }
+.sepbar[hidden] { display: none; }
+.sepbar span { flex: 1 1 240px; color: var(--muted); }
 .bpmstep { min-width: 34px; min-height: 34px; padding: 0; border-radius: 99px; font-size: 18px; font-weight: 700; line-height: 1; flex: none; }
 .mixlist { display: block; border: 1px solid var(--line); border-radius: 12px; overflow: hidden; }
 .mixlist > p { margin: 0; padding: 14px; }
@@ -515,6 +518,10 @@ ul.how b { color: var(--ink); font-weight: 600; }
     <div class="desk-bar">
       <span class="note" id="deskNote"></span>
       <label class="chk"><input type="checkbox" id="showAllMesa"> Mostrar canales apagados</label>
+    </div>
+    <div id="sepBar" class="sepbar" hidden>
+      <span id="sepText">Esta canción es un solo archivo, por eso tiene un solo canal.</span>
+      <button id="sepBtn" type="button" class="primary">✂ Separar instrumentos (IA)</button>
     </div>
     <div id="desk" class="desk" aria-label="Canales"></div>
     <section id="deskEdit" class="desk-edit" aria-live="polite"></section>
@@ -959,6 +966,7 @@ async function start() {
   nextTime = ctx.currentTime + 0.05;
   playing = true; pump(); timer = setInterval(pump, 40);
   $('play').textContent = 'Stop'; $('play').setAttribute('aria-pressed', 'true');
+  if (typeof renderMixes === 'function') renderMixes();
   requestAnimationFrame(frame);
 }
 function stop() {
@@ -969,6 +977,7 @@ function stop() {
   for (const l of [...engine.layers, ...engine.loopLayers]) for (const v of l.voices) v.data = null;
   $('play').textContent = 'Play'; $('play').setAttribute('aria-pressed', 'false');
   if ($('rtPlay')) $('rtPlay').textContent = '▶ Probar rutina';
+  if (typeof renderMixes === 'function') renderMixes();
   draw();
 }
 function shownBpm() { return mode === 'fixed' ? fixedBpm : playing ? currentBpm() : bpmAt(seekT); }
@@ -1430,7 +1439,49 @@ async function addLoopFile(file, meta = {}) {
     return false;
   }
 }
+// ---- Separate an imported song into voz / batería / bajo / otros (Demucs, on this PC) ----
+const SEP = 'http://localhost:8097';
+const STEM_NAMES = { voz: 'Voz', bateria: 'Batería', bajo: 'Bajo', otros: 'Otros' };
+const sepCandidate = () => loops.find((l) => l.src && !l.stem && !/^https?:\/\/(localhost|127\.0\.0\.1):8097\//.test(l.src));
+function sepUi() {
+  const l = sepCandidate(); $('sepBar').hidden = !l || sepBusy;
+  if (l && !sepBusy) $('sepText').textContent = '«' + l.name + '» es un solo archivo, por eso tiene un solo canal. Sepáralo en voz, batería, bajo y otros para mezclarlos aparte.';
+}
+let sepBusy = false;
+async function separateLoop(l, btn) {
+  if (!l || sepBusy) return;
+  sepBusy = true; const note = (t) => { $('sepText').textContent = t; if (btn) btn.textContent = t.length < 40 ? t : btn.textContent; };
+  $('sepBar').hidden = false; $('sepBtn').disabled = true; $('sepBtn').textContent = 'Separando…';
+  note('Separando «' + l.name + '» con la IA en tu PC. En tu PC tarda varios minutos (a veces más que la canción). No cierres la página.');
+  try {
+    let up = false; try { up = (await fetch(SEP + '/estado', { signal: AbortSignal.timeout(3000) })).ok; } catch (e) {}
+    if (!up) throw new Error('El separador no está abierto en tu PC. Abre «Separador.bat» (carpeta separador) y vuelve a intentar.');
+    const r = await fetch(SEP + '/separar', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ url: l.src }) });
+    const d = await r.json().catch(() => ({}));
+    if (!r.ok) throw new Error(d.error || 'No se pudo separar');
+    const files = await Promise.all(Object.entries(d.stems).map(async ([k, path]) => { const rr = await fetch(SEP + path); if (!rr.ok) throw new Error('No pude leer la pista ' + k); return [k, path, await rr.blob()]; }));
+    const base = { ...settings[l.id] }, deskOf = desk[l.id] ? { ...desk[l.id] } : null;
+    const oldLayer = engine && engine.loopLayers.find((x) => x.id === l.id);
+    const ids = [];
+    for (const [k, path, blob] of files) {
+      const id = await addLoopFile(new File([blob], k + '.mp3'), { name: l.name.slice(0, 18) + ' · ' + STEM_NAMES[k], beats: l.beats, src: SEP + path, credit: l.credit, settings: base, desk: deskOf, quiet: true });
+      if (id) { ids.push(id); const lo = loops.find((x) => x.id === id); if (lo) lo.stem = k; }
+    }
+    if (ids.length !== 4) throw new Error('Faltaron pistas');
+    if (oldLayer) for (const x of engine.loopLayers) if (ids.includes(x.id)) x.tick = oldLayer.tick;
+    loops.splice(loops.indexOf(l), 1); delete settings[l.id]; if (engine) engine.removeLoop(l.id); delete desk[l.id]; delete deskCooked[l.id];
+    if (focus) focus = focus.filter((x) => x !== l.id);
+    if (selected === l.id) selected = ids[0];
+    renderLoops(); layout(); fill(); draw(); if (!$('pageMesa').hidden) buildDesk(); live(); saveOpenMix();
+    sepBusy = false; sepUi(); setStatus('✓ Separada en 4 canales: voz, batería, bajo y otros.');
+  } catch (e) {
+    sepBusy = false; $('sepBar').hidden = false; $('sepText').textContent = e.message;
+  }
+  $('sepBtn').disabled = false; $('sepBtn').textContent = '✂ Separar instrumentos (IA)';
+}
+$('sepBtn').addEventListener('click', () => separateLoop(sepCandidate()));
 function renderLoops() {
+  sepUi();
   const list = $('loopList'); list.innerHTML = '';
   for (const l of loops) {
     const div = document.createElement('div'); div.className = 'loopitem';
@@ -1890,7 +1941,8 @@ function renderMixes() {
       const meta = document.createElement('div'); meta.className = 'meta'; meta.textContent = [m.style, (m.bpm || '?') + ' BPM', nT ? temas : '', when].filter(Boolean).join(' · '); row.appendChild(meta);
       const acts = document.createElement('div'); acts.className = 'acts'; row.appendChild(acts);
       const mk = (label, fn) => { const b = document.createElement('button'); b.type = 'button'; b.textContent = label; b.addEventListener('click', fn); acts.appendChild(b); return b; };
-      mk('▶ Escuchar', async () => { stopPreview(); await openMixById(m.id); if (!playing && engine) await start(); }).className = 'go';
+      const isOn = playing && m.id === openMix;
+      mk(isOn ? '■ Stop' : '▶ Escuchar', async () => { if (playing && m.id === openMix) { stop(); return; } stopPreview(); if (playing) stop(); await openMixById(m.id); if (!playing && engine) await start(); }).className = 'go';
       mk(m.id === openMix ? '✓ Abierta' : 'Modificar', async () => { stopPreview(); await openMixById(m.id, 'mesa'); });
       mk('✎ Nombre', () => inlineRename(row, m.name, (v) => { if (v) { m.name = v; storeMixes(); } renderMixes(); }));
       mk(m.publish ? '✓ En repositorio' : '→ Repositorio', () => { m.publish = !m.publish; storeMixes(); renderMixes(); });
