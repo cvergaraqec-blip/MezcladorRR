@@ -1829,6 +1829,7 @@ async function openMixById(id, then) {
   loadingMix = true;
   applyMix(cleanMix(m.mix || {}));
   focus = m.instruments || Object.keys(m.mix || {}).filter((id) => (m.mix[id].gain ?? 1) > 0 && m.mix[id].in);
+  if (!m.instruments && !focus.length) focus = null;
   if (!m.kitFixed && (m.loops || []).length && LIB_STYLE.test(m.style || '')) { for (const id in DEFAULTS) if (settings[id]) settings[id].gain = 0; focus = []; m.kitFixed = true; m.mix = changes(); storeMixes(); }
   clearLoops();
   setDeskAll(m.desk, m.master);
