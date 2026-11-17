@@ -72,6 +72,7 @@ button:disabled { opacity: 0.5; cursor: default; }
 .bpm input[type=range] { flex: 1; min-width: 0; accent-color: var(--lime); }
 .bpm output { font: 700 22px var(--font-num); min-width: 3.2ch; text-align: right; font-variant-numeric: tabular-nums; }
 .bpm small { color: var(--muted); }
+@media (max-width: 480px) { .bpm { gap: 6px; flex-wrap: wrap; } .bpm input[type=range] { flex: 1 1 120px; } .bpm output { font-size: 20px; } }
 .phase { font-weight: 600; color: var(--lime); min-width: 6ch; }
 .status { font-size: 12px; color: var(--muted); margin-left: auto; }
 .status.warn { color: var(--warn); }
@@ -203,15 +204,36 @@ ul.how b { color: var(--ink); font-weight: 600; }
 #play { min-height: 48px; min-width: 130px; font-size: 15px; border-radius: 99px; }
 .mixes { padding: 16px; border: 1px solid var(--border); border-radius: 16px; background: var(--panel); }
 .mixes h2 { font-size: 16px; }
-.mixlist { grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 10px; }
-.mixitem { flex-direction: column; align-items: stretch; gap: 8px; padding: 12px; border-radius: 12px; }
-.mixitem .t { flex: none; }
-.mixitem .t strong { font-size: 15px; }
-.mixitem > button { width: 100%; }
-.mixitem .acts { display: flex; gap: 6px; }
-.mixitem .acts button { flex: 1; min-height: 34px; padding: 0 8px; font-size: 12px; }
+.bpmstep { min-width: 34px; min-height: 34px; padding: 0; border-radius: 99px; font-size: 18px; font-weight: 700; line-height: 1; flex: none; }
+.mixlist { display: block; border: 1px solid var(--line); border-radius: 12px; overflow: hidden; }
+.mixlist > p { margin: 0; padding: 14px; }
+.mixhead, .mixitem { display: grid; grid-template-columns: 34px minmax(0, 2fr) minmax(0, 1.2fr) 64px 64px minmax(0, 1.1fr) 250px; align-items: center; gap: 10px; padding: 9px 12px; }
+.mixhead { background: #12170e; color: var(--muted); font-size: 11px; text-transform: uppercase; letter-spacing: .5px; }
+.mixitem { border: 0; border-top: 1px solid var(--line); border-radius: 0; background: transparent; flex-wrap: nowrap; }
+.mixitem:nth-child(odd) { background: #161c11; }
+.mixitem:hover { background: #1d2516; }
+.mixitem.open { background: #23301a; box-shadow: inset 3px 0 0 var(--lime); }
+.mixitem .n { color: var(--muted); font-variant-numeric: tabular-nums; }
+.mixitem .nm { font-weight: 600; font-size: 14px; overflow-wrap: anywhere; }
+.mixitem .nm em { font-style: normal; color: var(--lime); font-size: 11px; font-weight: 500; margin-left: 6px; }
+.mixitem .c { color: var(--muted); font-size: 12px; overflow-wrap: anywhere; }
+.mixitem .acts { display: flex; gap: 6px; justify-content: flex-end; }
+.mixitem .acts button { min-height: 32px; padding: 0 10px; font-size: 12px; white-space: nowrap; }
 .mixitem .acts button.go { background: var(--lime); color: var(--on-lime); border-color: var(--lime); }
-.mixlist > p { grid-column: 1 / -1; }
+@media (max-width: 720px) {
+  .mixhead { display: none; }
+  .mixitem { grid-template-columns: 26px minmax(0, 1fr); gap: 4px 8px; padding: 10px; }
+  .mixitem .c { display: none; }
+  .mixitem .meta { display: block !important; grid-column: 2; color: var(--muted); font-size: 12px; }
+  .mixitem .temas { grid-column: 2; grid-row: auto; order: 1; }
+  .mixitem .acts { order: 2; }
+  .mixitem .acts { grid-column: 1 / -1; justify-content: stretch; margin-top: 4px; }
+  .mixitem .acts button { flex: 1; }
+}
+.mixitem .temas { grid-column: 2 / -1; grid-row: 2; display: flex; flex-wrap: wrap; gap: 4px 6px; align-items: center; font-size: 12px; color: var(--muted); }
+.mixitem .temas b { font-weight: 500; margin-right: 2px; }
+.mixitem .temas span { padding: 2px 8px; border-radius: 99px; background: #222c19; border: 1px solid var(--line); color: var(--ink); }
+.mixitem .meta { display: none; }
 .adv { border: 1px solid var(--border); border-radius: 16px; background: #151a11; }
 .adv > summary { list-style: none; display: grid; gap: 2px; padding: 14px 18px; cursor: pointer; }
 .adv > summary::-webkit-details-marker { display: none; }
@@ -397,7 +419,9 @@ ul.how b { color: var(--ink); font-weight: 600; }
       <button id="modeJourney" aria-pressed="false">Recorrido 45 → 215</button>
     </div>
     <div class="bpm">
+      <button id="bpmDown" class="bpmstep" type="button" aria-label="Bajar BPM">−</button>
       <input id="bpm" type="range" min="40" max="220" step="1" value="90" aria-label="BPM">
+      <button id="bpmUp" class="bpmstep" type="button" aria-label="Subir BPM">+</button>
       <output id="bpmOut" for="bpm">90</output><small>BPM</small>
       <span id="phase" class="phase">Spa</span>
     </div>
@@ -995,6 +1019,18 @@ function setMode(m) {
 $('modeFixed').addEventListener('click', () => setMode('fixed'));
 $('modeJourney').addEventListener('click', () => setMode('journey'));
 $('bpm').addEventListener('input', (e) => { fixedBpm = Number(e.target.value); frame(); saveOpenMix(); });
+function stepBpm(d) {
+  if (mode === 'journey') setMode('fixed');
+  const r = $('bpm'); r.value = Math.max(+r.min, Math.min(+r.max, Number(r.value) + d));
+  r.dispatchEvent(new Event('input', { bubbles: true }));
+}
+for (const [id, d] of [['bpmDown', -1], ['bpmUp', 1]]) {
+  let hold = null, rep = null;
+  const b = $(id), stop = () => { clearTimeout(hold); clearInterval(rep); hold = rep = null; };
+  b.addEventListener('pointerdown', (e) => { e.preventDefault(); stepBpm(d); hold = setTimeout(() => { rep = setInterval(() => stepBpm(d), 70); }, 400); });
+  for (const ev of ['pointerup', 'pointerleave', 'pointercancel']) b.addEventListener(ev, stop);
+  b.addEventListener('keydown', (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); stepBpm(d); } });
+}
 $('showAll').addEventListener('change', (e) => { showAll = e.target.checked; layout(); draw(); if (!$('pageMesa').hidden) buildDesk(); });
 
 // ---- Your loops ----
@@ -1440,12 +1476,25 @@ function renderMixes() {
   for (const boxId of ['mixListMesa']) {
     const box = $(boxId); box.innerHTML = '';
     if (!mixes.length) { box.innerHTML = '<p class="note">Todavía no hay músicas guardadas. Ve a <b>1 · Crear música</b>, crea o trae una música y pulsa <b>Guardar</b>: aparece aquí.</p>'; continue; }
+    const head = document.createElement('div'); head.className = 'mixhead';
+    for (const h of ['#', 'Nombre', 'Estilo', 'BPM', 'Temas', 'Fecha', '']) { const d = document.createElement('div'); d.textContent = h; head.appendChild(d); }
+    box.appendChild(head);
     for (const m of mixes) {
       const row = document.createElement('div'); row.className = 'mixitem' + (m.id === openMix ? ' open' : '');
       const when = new Date(m.created).toLocaleString('es', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
-      row.innerHTML = '<div class="t"><strong></strong><span></span></div>';
-      row.querySelector('strong').textContent = m.name + (m.id === openMix ? ' (abierta)' : '');
-      row.querySelector('span').textContent = [m.style, (m.bpm || '?') + ' BPM', (m.loops || []).length ? m.loops.length + (m.loops.length === 1 ? ' tema' : ' temas') : '', when].filter(Boolean).join(' · ');
+      const nT = (m.loops || []).length, temas = nT ? nT + (nT === 1 ? ' tema' : ' temas') : '—';
+      const cells = [['n', (mixes.indexOf(m) + 1) + '.'], ['nm', m.name], ['c', m.style || '—'], ['c', (m.bpm || '?') + ' BPM'], ['c', temas], ['c', when]];
+      for (const [cls, txt] of cells) { const d = document.createElement('div'); d.className = cls; d.textContent = txt; row.appendChild(d); }
+      if (m.id === openMix) { const e = document.createElement('em'); e.textContent = 'abierta'; row.querySelector('.nm').appendChild(e); }
+      const parts = (m.loops || []).map((l) => '🎵 ' + (l.name || 'Tema'));
+      const inst = (m.instruments || []).map((id) => NAMES[id] || id);
+      if (parts.length || inst.length) {
+        const tl = document.createElement('div'); tl.className = 'temas';
+        const lab = document.createElement('b'); lab.textContent = parts.length ? 'Temas:' : 'Instrumentos:'; tl.appendChild(lab);
+        for (const t of (parts.length ? parts : inst)) { const c = document.createElement('span'); c.textContent = t; tl.appendChild(c); }
+        row.appendChild(tl);
+      }
+      const meta = document.createElement('div'); meta.className = 'meta'; meta.textContent = [m.style, (m.bpm || '?') + ' BPM', nT ? temas : '', when].filter(Boolean).join(' · '); row.appendChild(meta);
       const acts = document.createElement('div'); acts.className = 'acts'; row.appendChild(acts);
       const mk = (label, fn) => { const b = document.createElement('button'); b.type = 'button'; b.textContent = label; b.addEventListener('click', fn); acts.appendChild(b); return b; };
       mk('▶ Escuchar', async () => { stopPreview(); await openMixById(m.id); if (!playing && engine) await start(); }).className = 'go';
