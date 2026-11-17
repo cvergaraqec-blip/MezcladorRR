@@ -204,6 +204,16 @@ ul.how b { color: var(--ink); font-weight: 600; }
 #play { min-height: 48px; min-width: 130px; font-size: 15px; border-radius: 99px; }
 .mixes { padding: 16px; border: 1px solid var(--border); border-radius: 16px; background: var(--panel); }
 .mixes h2 { font-size: 16px; }
+.routine { flex: 1 1 100%; display: grid; gap: 8px; padding: 12px; border: 1px solid var(--line); border-radius: 12px; background: #141a10; }
+.rt-head { display: flex; flex-wrap: wrap; gap: 4px 12px; align-items: baseline; }
+.rt-list { margin: 0; padding: 0; list-style: none; display: grid; gap: 6px; counter-reset: rt; }
+.rt-list li { counter-increment: rt; display: flex; flex-wrap: wrap; align-items: center; gap: 6px 8px; padding: 6px 8px; border-radius: 9px; background: #1a2114; font-size: 13px; }
+.rt-list li::before { content: counter(rt) "."; color: var(--muted); min-width: 18px; }
+.rt-list li.now { box-shadow: inset 3px 0 0 var(--lime); background: #23301a; }
+.rt-list input { width: 64px; min-height: 32px; padding: 0 6px; text-align: center; font-variant-numeric: tabular-nums; }
+.rt-list .x { margin-left: auto; min-height: 30px; min-width: 30px; padding: 0; }
+.rt-foot { display: flex; flex-wrap: wrap; gap: 8px 14px; align-items: center; }
+.rt-now { color: var(--lime); font-size: 13px; }
 .bpmstep { min-width: 34px; min-height: 34px; padding: 0; border-radius: 99px; font-size: 18px; font-weight: 700; line-height: 1; flex: none; }
 .mixlist { display: block; border: 1px solid var(--line); border-radius: 12px; overflow: hidden; }
 .mixlist > p { margin: 0; padding: 14px; }
@@ -417,6 +427,7 @@ ul.how b { color: var(--ink); font-weight: 600; }
     <div class="seg" role="group" aria-label="Modo">
       <button id="modeFixed" aria-pressed="true">BPM fijo</button>
       <button id="modeJourney" aria-pressed="false">Recorrido 45 → 215</button>
+      <button id="modeRoutine" aria-pressed="false">Rutina</button>
     </div>
     <div class="bpm">
       <button id="bpmDown" class="bpmstep" type="button" aria-label="Bajar BPM">−</button>
@@ -426,6 +437,11 @@ ul.how b { color: var(--ink); font-weight: 600; }
       <span id="phase" class="phase">Spa</span>
     </div>
     <span id="status" class="status" role="status">Conectando…</span>
+    <div id="routine" class="routine" hidden>
+      <div class="rt-head"><b>Rutina de entrenamiento</b><span id="rtTotal" class="note"></span></div>
+      <ol id="rtList" class="rt-list"></ol>
+      <div class="rt-foot"><button id="rtAdd" type="button">＋ Agregar tramo</button><span id="rtNow" class="rt-now" aria-live="polite"></span></div>
+    </div>
   </section>
     <section id="saveBar" class="savebar" aria-live="polite">
       <div><b id="saveTitle2">Guardar en Mis listas</b><span id="saveNote" class="note">Crea o trae una música y guárdala aquí para modificarla después.</span></div>
@@ -745,6 +761,18 @@ class Engine {
 // ---- Audio: blocks rendered just ahead of the clock ----
 let ctx = null, engine = null, samples = null, master = null, echoIn = null, echoDelay = null, echoFb = null, timer = null, nextTime = 0, playing = false;
 let mode = 'fixed', journeyStart = 0, fixedBpm = 90;
+let routine = [{ from: 90, to: 120, min: 3 }, { from: 120, to: 130, min: 3 }, { from: 130, to: 100, min: 2 }];
+try { const r = JSON.parse(localStorage.getItem('mezcladorrr.rutina')); if (Array.isArray(r) && r.length) routine = r; } catch (e) {}
+const rtTotalSec = () => routine.reduce((a, x) => a + Math.max(0, +x.min || 0) * 60, 0);
+function routineAt(t) { // -> {bpm, i, left}
+  let acc = 0;
+  for (let i = 0; i < routine.length; i++) {
+    const x = routine[i], d = Math.max(0, +x.min || 0) * 60;
+    if (t < acc + d) { const f = (t - acc) / d; return { bpm: Math.round(x.from + (x.to - x.from) * f), i, left: acc + d - t }; }
+    acc += d;
+  }
+  return { bpm: routine.length ? routine[routine.length - 1].to : fixedBpm, i: -1, left: 0, done: true };
+}
 const BLOCK = 2048, AHEAD = 0.3;
 const $ = (id) => document.getElementById(id);
 
@@ -765,6 +793,11 @@ async function loadKit() {
   for (const l of loops) engine.addLoop(l);
 }
 function currentBpm() {
+  if (mode === 'routine') {
+    const r = routineAt(Math.max(0, ctx.currentTime - journeyStart));
+    if (r.done) setTimeout(stop, 0);
+    return Math.max(MIN, Math.min(MAX, r.bpm));
+  }
   if (mode === 'journey') {
     const t = Math.max(0, ctx.currentTime - journeyStart);
     if (t >= JOURNEY.seconds) { setTimeout(stop, 0); return JOURNEY.to; }
@@ -797,7 +830,7 @@ async function start() {
   echoIn.connect(echoDelay); echoDelay.connect(echoFb); echoFb.connect(echoDelay); echoDelay.connect(master);
   applyEchoMaster();
   engine.step = 0; engine.toNext = 0;
-  if (mode === 'journey') journeyStart = ctx.currentTime + 0.05;
+  if (mode === 'journey' || mode === 'routine') journeyStart = ctx.currentTime + 0.05;
   engine.setBpm(currentBpm(), true);
   nextTime = ctx.currentTime + 0.05;
   playing = true; pump(); timer = setInterval(pump, 40);
@@ -812,10 +845,11 @@ function stop() {
   $('play').textContent = 'Play'; $('play').setAttribute('aria-pressed', 'false');
   draw();
 }
-function shownBpm() { return playing ? (mode === 'journey' ? currentBpm() : fixedBpm) : mode === 'journey' ? JOURNEY.from : fixedBpm; }
+function shownBpm() { return playing ? (mode !== 'fixed' ? currentBpm() : fixedBpm) : mode === 'journey' ? JOURNEY.from : mode === 'routine' ? (routine[0]?.from ?? fixedBpm) : fixedBpm; }
 function frame() {
   const bpm = shownBpm();
-  $('bpmOut').textContent = bpm; if (mode === 'journey') $('bpm').value = bpm;
+  $('bpmOut').textContent = bpm; if (mode !== 'fixed') $('bpm').value = bpm;
+  if (mode === 'routine') routineNow();
   $('phase').textContent = bpm < 100 ? 'Spa' : bpm < 150 ? 'Ritmo' : 'Techno';
   if (bpm !== deskBpmShown && typeof refreshDesk === 'function' && !$('pageMesa').hidden) refreshDesk();
   draw();
@@ -1013,14 +1047,50 @@ function setMode(m) {
   mode = m;
   $('modeFixed').setAttribute('aria-pressed', String(m === 'fixed'));
   $('modeJourney').setAttribute('aria-pressed', String(m === 'journey'));
-  $('bpm').disabled = m === 'journey';
+  $('modeRoutine').setAttribute('aria-pressed', String(m === 'routine'));
+  $('bpm').disabled = m !== 'fixed';
+  $('routine').hidden = m !== 'routine';
+  if (m === 'routine') renderRoutine();
   frame();
 }
 $('modeFixed').addEventListener('click', () => setMode('fixed'));
 $('modeJourney').addEventListener('click', () => setMode('journey'));
+$('modeRoutine').addEventListener('click', () => setMode('routine'));
+const fmtT = (sec) => { sec = Math.max(0, Math.round(sec)); return Math.floor(sec / 60) + ':' + String(sec % 60).padStart(2, '0'); };
+function routineChanged() {
+  try { localStorage.setItem('mezcladorrr.rutina', JSON.stringify(routine)); } catch (e) {}
+  $('rtTotal').textContent = routine.length + (routine.length === 1 ? ' tramo' : ' tramos') + ' · ' + fmtT(rtTotalSec()) + ' en total';
+  saveOpenMix(); frame();
+}
+function renderRoutine() {
+  const ol = $('rtList'); ol.innerHTML = '';
+  routine.forEach((x, i) => {
+    const li = document.createElement('li');
+    const num = (key, lo, hi, step, label) => {
+      const inp = document.createElement('input'); inp.type = 'number'; inp.min = lo; inp.max = hi; inp.step = step; inp.value = x[key]; inp.setAttribute('aria-label', label + ' del tramo ' + (i + 1));
+      inp.addEventListener('change', () => { let v = Number(inp.value); if (!isFinite(v)) v = lo; v = Math.max(lo, Math.min(hi, v)); inp.value = v; x[key] = v;
+        if (key === 'to' && routine[i + 1]) { routine[i + 1].from = v; renderRoutine(); } routineChanged(); });
+      return inp;
+    };
+    const t = (txt) => { const sp = document.createElement('span'); sp.textContent = txt; return sp; };
+    li.append(t('De'), num('from', MIN, MAX, 1, 'BPM inicial'), t('a'), num('to', MIN, MAX, 1, 'BPM final'), t('BPM en'), num('min', 0.5, 60, 0.5, 'Minutos'), t('min'));
+    if (routine.length > 1) { const x2 = document.createElement('button'); x2.type = 'button'; x2.className = 'x'; x2.textContent = '✕'; x2.setAttribute('aria-label', 'Quitar tramo ' + (i + 1));
+      x2.addEventListener('click', () => { routine.splice(i, 1); renderRoutine(); routineChanged(); }); li.appendChild(x2); }
+    ol.appendChild(li);
+  });
+  routineChanged();
+}
+$('rtAdd').addEventListener('click', () => { const last = routine[routine.length - 1]; const f = last ? last.to : fixedBpm; routine.push({ from: f, to: Math.min(MAX, f + 10), min: 3 }); renderRoutine(); });
+let rtShown = -2;
+function routineNow() {
+  const r = playing ? routineAt(Math.max(0, ctx.currentTime - journeyStart)) : null;
+  const i = r ? r.i : -1;
+  if (i !== rtShown) { rtShown = i; [...$('rtList').children].forEach((li, k) => li.classList.toggle('now', k === i)); }
+  $('rtNow').textContent = r && !r.done ? 'Tramo ' + (i + 1) + ' de ' + routine.length + ' · quedan ' + fmtT(r.left) + ' · total ' + fmtT(rtTotalSec() - Math.max(0, ctx.currentTime - journeyStart)) : 'Pulsa Play para empezar la rutina.';
+}
 $('bpm').addEventListener('input', (e) => { fixedBpm = Number(e.target.value); frame(); saveOpenMix(); });
 function stepBpm(d) {
-  if (mode === 'journey') setMode('fixed');
+  if (mode !== 'fixed') setMode('fixed');
   const r = $('bpm'); r.value = Math.max(+r.min, Math.min(+r.max, Number(r.value) + d));
   r.dispatchEvent(new Event('input', { bubbles: true }));
 }
@@ -1434,7 +1504,7 @@ function clearLoops() {
   if (!settings[selected]) selected = SONG.layers[0].id;
 }
 function addMix(name, style, bpm) {
-  const m = { id: 'm' + Date.now(), name, style, bpm, instruments: focus, mix: changes(), desk: deskWithoutLoops(), loops: loopsSnapshot(), master: { ...deskMaster }, created: Date.now() };
+  const m = { id: 'm' + Date.now(), name, style, bpm, routine: mode === 'routine' ? JSON.parse(JSON.stringify(routine)) : null, instruments: focus, mix: changes(), desk: deskWithoutLoops(), loops: loopsSnapshot(), master: { ...deskMaster }, created: Date.now() };
   mixes.unshift(m); mixes = mixes.slice(0, 40);
   openMix = m.id; storeMixes(); renderMixes();
 }
@@ -1443,7 +1513,7 @@ function saveOpenMix() {
   clearTimeout(mixTimer);
   mixTimer = setTimeout(() => {
     const m = mixes.find((x) => x.id === openMix); if (!m) return;
-    m.mix = changes(); m.desk = deskWithoutLoops(); m.loops = loopsSnapshot(); m.master = { ...deskMaster }; m.bpm = fixedBpm;
+    m.mix = changes(); m.desk = deskWithoutLoops(); m.loops = loopsSnapshot(); m.master = { ...deskMaster }; m.bpm = fixedBpm; m.routine = mode === 'routine' ? JSON.parse(JSON.stringify(routine)) : (m.routine || null);
     storeMixes(); renderMixes();
   }, 400);
 }
@@ -1467,7 +1537,8 @@ async function openMixById(id, then) {
   if (missing) setStatus(missing === 1 ? 'No pude volver a cargar 1 tema (¿sin conexión?).' : 'No pude volver a cargar ' + missing + ' temas (¿sin conexión?).', true);
   renderLoops(); layout();
   fixedBpm = m.bpm || fixedBpm; $('bpm').value = fixedBpm;
-  if (mode !== 'fixed') setMode('fixed');
+  if (Array.isArray(m.routine) && m.routine.length) { routine = JSON.parse(JSON.stringify(m.routine)); setMode('routine'); }
+  else if (mode !== 'fixed') setMode('fixed');
   live(); fill(); draw(); frame(); changed(); renderMixes();
   if (then === 'mesa') { pageNow = 'mesa'; try { history.replaceState(null, '', '#listas'); } catch {} showPage(); }
   else if (!$('pageMesa').hidden) buildDesk();
@@ -1486,6 +1557,7 @@ function renderMixes() {
       const cells = [['n', (mixes.indexOf(m) + 1) + '.'], ['nm', m.name], ['c', m.style || '—'], ['c', (m.bpm || '?') + ' BPM'], ['c', temas], ['c', when]];
       for (const [cls, txt] of cells) { const d = document.createElement('div'); d.className = cls; d.textContent = txt; row.appendChild(d); }
       if (m.id === openMix) { const e = document.createElement('em'); e.textContent = 'abierta'; row.querySelector('.nm').appendChild(e); }
+      if (Array.isArray(m.routine) && m.routine.length) { const e = document.createElement('em'); e.textContent = '⏱ rutina ' + m.routine.map((x) => x.to).join('→'); row.querySelector('.nm').appendChild(e); }
       const parts = (m.loops || []).map((l) => '🎵 ' + (l.name || 'Tema'));
       const inst = (m.instruments || []).map((id) => NAMES[id] || id);
       if (parts.length || inst.length) {
