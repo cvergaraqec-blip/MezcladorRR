@@ -305,7 +305,7 @@ ul.how b { color: var(--ink); font-weight: 600; }
 .savebar .note button { margin-left: 6px; min-height: 32px; }
 .savebar input { flex: 1 1 200px; min-width: 0; font: 500 15px var(--font-body); color: var(--ink); background: #141a0f; border: 1px solid #4b573c; border-radius: 10px; padding: 8px 12px; min-height: 44px; }
 .savebar button.primary { min-height: 44px; padding: 0 26px; }
-.savebar.ready { border-color: var(--lime); }
+.savebar.ready { border-color: var(--lime); position: sticky; bottom: 10px; z-index: 5; box-shadow: 0 8px 30px rgba(0,0,0,.55); }
 .sec-title { font-size: 18px; margin: 8px 0 -4px; }
 @media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
 </style>
@@ -323,7 +323,7 @@ ul.how b { color: var(--ink); font-weight: 600; }
   <div id="pagePista" class="page">
     <div class="pick" role="group" aria-label="Cómo quieres crear tu música">
       <button type="button" id="pickElegir" aria-pressed="true"><b>Elegir la música</b><small>Un estilo o un músico que te guste</small></button>
-      <button type="button" id="pickTraer" aria-pressed="false"><b>Traer de otra plataforma</b><small>Canciones libres de Incompetech y Jamendo</small></button>
+      <button type="button" id="pickTraer" aria-pressed="false"><b>Traer de otra plataforma</b><small>Canciones libres de Incompetech y Jamendo, directo a Mis listas</small></button>
     </div>
     <div id="paneElegir" class="pane">
     <section class="styles" aria-labelledby="stylesTitle">
@@ -384,7 +384,7 @@ ul.how b { color: var(--ink); font-weight: 600; }
       <p class="cred-box"><b>«Título del tema» Kevin MacLeod (incompetech.com)</b><br>Licensed under Creative Commons: By Attribution 4.0<br>https://creativecommons.org/licenses/by/4.0/</p>
       <p class="note">Para Jamendo y las otras fuentes: <b>«Título» de Autor</b>, la licencia (por ejemplo CC BY 3.0) y el enlace al tema. Si es <b>CC BY-SA</b>, lo que publiques con ese tema debe compartirse con la misma licencia.</p>
       <ul class="tips">
-        <li>Cada tema que agregas a una mezcla queda con su crédito en <b>Tus loops</b> y en <b>Mis listas</b>.</li>
+        <li>Cada tema que agregas queda en <b>Mis listas</b> con su crédito, listo para editarlo en la Mesa y el Editor avanzado.</li>
         <li>Si alguna vez no puedes poner el crédito, Incompetech vende una licencia que lo evita. <a href="https://incompetech.com/music/royalty-free/faq.html" target="_blank" rel="noopener">Preguntas frecuentes ↗</a></li>
         <li>Esta guía es orientativa, no es asesoría legal.</li>
       </ul>
@@ -1790,7 +1790,7 @@ function trackRow(x) {
     preview.src = x.play; preview.play().catch(() => {});
     previewBtn = play; play.setAttribute('aria-pressed', 'true'); play.textContent = '■ Parar';
   });
-  const add = document.createElement('button'); add.type = 'button'; add.className = 'primary'; add.textContent = '+ Usar en la mezcla';
+  const add = document.createElement('button'); add.type = 'button'; add.className = 'primary'; add.textContent = '＋ Agregar a Mis listas';
   add.addEventListener('click', () => trackAdd(x, add, row));
   row.append(play, add);
   return row;
@@ -1802,17 +1802,26 @@ async function trackAdd(x, btn, row) {
     if (!ctx) await loadKit();
     const r = await fetch(x.src); if (!r.ok) throw new Error();
     const blob = await r.blob();
-    // On Crear música a track starts a new music (a draft), unless one is already
-    // being made; on Mis listas it goes into the music that is open.
-    const fresh = !draft && (pageNow === 'pista' || !openMix);
-    if (fresh && openMix) { openMix = null; clearLoops(); renderLoops(); layout(); renderMixes(); }
+    // On Crear música each track becomes a new music, saved straight into Mis
+    // listas; on Mis listas it goes into the music that is open.
+    const fresh = pageNow === 'pista' || !openMix;
+    if (fresh) { openMix = null; draft = null; clearLoops(); renderLoops(); layout(); }
     // A new mix takes the track's own tempo (when known), so it plays at its natural speed.
     if (fresh && x.b) { fixedBpm = Math.min(MAX, Math.max(MIN, x.b)); $('bpm').value = fixedBpm; if (mode !== 'fixed') setMode('fixed'); frame(); }
     ok = await addLoopFile(new File([blob], x.file), { name: x.t, bpm: x.b || fixedBpm, src: x.src, credit: x.credit });
-    if (ok && fresh) { focus = null; setDraft(x.t, x.style); }
+    if (ok && fresh) {
+      focus = null; addMix(x.t, x.style, fixedBpm);
+      $('saveMix').disabled = true; $('saveMix').textContent = 'Guardar'; $('saveBar').classList.remove('ready');
+      $('saveNote').textContent = '«' + x.t + '» quedó en Mis listas.';
+    }
   } catch {}
   if (!ok) { btn.disabled = false; btn.textContent = 'No se pudo traer. Reintentar'; return; }
-  btn.textContent = '✓ En la mezcla';
+  btn.textContent = '✓ En Mis listas';
+  if (!row.querySelector('.go-listas')) {
+    const go = document.createElement('button'); go.type = 'button'; go.className = 'go-listas'; go.textContent = 'Editar →';
+    go.addEventListener('click', () => { stopPreview(); pageNow = 'mesa'; try { history.replaceState(null, '', '#listas'); } catch {} showPage(); window.scrollTo(0, 0); });
+    row.appendChild(go);
+  }
 }
 function renderTracks(list, items, append = false) {
   if (!append) list.innerHTML = '';
