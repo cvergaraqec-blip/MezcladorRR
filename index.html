@@ -984,7 +984,7 @@ let rows = []; // {id, y, group}
 // The instruments of the mix that is open (null: the whole kit). The editor and
 // the Mesa show only these, unless "Ver todo el kit" is on.
 let focus = null, showAll = false;
-const inFocus = (id) => showAll || !focus || !focus.length || focus.includes(id);
+const inFocus = (id) => showAll || !focus || focus.includes(id);
 function layout() {
   rows = []; let y = L.top;
   for (const [name, ids] of GROUPS) {
@@ -1829,6 +1829,7 @@ async function openMixById(id, then) {
   loadingMix = true;
   applyMix(cleanMix(m.mix || {}));
   focus = m.instruments || Object.keys(m.mix || {}).filter((id) => (m.mix[id].gain ?? 1) > 0 && m.mix[id].in);
+  if (!m.kitFixed && (m.loops || []).length && LIB_STYLE.test(m.style || '')) { for (const id in DEFAULTS) if (settings[id]) settings[id].gain = 0; focus = []; m.kitFixed = true; m.mix = changes(); storeMixes(); }
   clearLoops();
   setDeskAll(m.desk, m.master);
   let missing = 0;
@@ -2225,6 +2226,10 @@ function trackRow(x) {
   row.append(play, add);
   return row;
 }
+// A song brought from another platform plays alone: the kit's own instruments
+// (pad, aire, latido…) are switched off so nothing sounds underneath it.
+function silenceKit() { for (const id in DEFAULTS) if (settings[id]) settings[id].gain = 0; focus = []; live(); fill(); draw(); }
+const LIB_STYLE = /^(Incompetech|Jamendo|Wikimedia|Freesound|ccMixter|Openverse)$/i;
 async function trackAdd(x, btn, row) {
   btn.disabled = true; btn.textContent = 'Trayendo el tema…';
   let ok = false;
@@ -2235,12 +2240,12 @@ async function trackAdd(x, btn, row) {
     // On Crear música each track becomes a new music, saved straight into Mis
     // listas; on Mis listas it goes into the music that is open.
     const fresh = pageNow === 'pista' || !openMix;
-    if (fresh) { openMix = null; draft = null; clearLoops(); renderLoops(); layout(); }
+    if (fresh) { if (playing) stop(); openMix = null; draft = null; clearLoops(); silenceKit(); renderLoops(); layout(); }
     // A new mix takes the track's own tempo (when known), so it plays at its natural speed.
     if (fresh && x.b) { fixedBpm = Math.min(MAX, Math.max(MIN, x.b)); $('bpm').value = fixedBpm; if (mode !== 'fixed') setMode('fixed'); frame(); }
     ok = await addLoopFile(new File([blob], x.file), { name: x.t, bpm: x.b || fixedBpm, src: x.src, credit: x.credit });
     if (ok && fresh) {
-      focus = null; addMix(x.t, x.style, fixedBpm);
+      focus = []; addMix(x.t, x.style, fixedBpm);
       $('saveMix').disabled = true; $('saveMix').textContent = 'Guardar'; $('saveBar').classList.remove('ready');
       $('saveNote').textContent = '«' + x.t + '» quedó en Mis listas.';
     }
