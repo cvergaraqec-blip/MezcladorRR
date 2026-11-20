@@ -209,6 +209,22 @@ ul.how b { color: var(--ink); font-weight: 600; }
 #play { min-height: 48px; min-width: 130px; font-size: 15px; border-radius: 99px; }
 .mixes { padding: 16px; border: 1px solid var(--border); border-radius: 16px; background: var(--panel); }
 .mixes h2 { font-size: 16px; }
+.workbox { display: grid; gap: 12px; padding: 16px; border: 2px solid var(--lime); border-radius: 16px; background: #1a2212; margin-top: 12px; }
+.wb-head { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 10px; min-width: 0; }
+.wb-k { font-size: 11px; text-transform: uppercase; letter-spacing: .08em; color: var(--muted); }
+.wb-head strong { font-size: 20px; color: var(--ink); overflow-wrap: anywhere; }
+.wb-modes { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.wb-modes button { display: grid; gap: 2px; text-align: left; padding: 12px 14px; border-radius: 12px; background: transparent; min-height: 0; height: auto; }
+.wb-modes button b { font-size: 16px; }
+.wb-modes button small { color: var(--muted); font-weight: 400; font-size: 12px; white-space: normal; }
+.wb-modes button[aria-pressed="true"] { border-color: var(--lime); background: #2c3523; color: var(--lime); }
+.wb-modes button:disabled { opacity: .45; }
+@media (max-width: 480px) { .wb-modes { grid-template-columns: 1fr; } }
+#transport.is-rutina .seg, #transport.is-rutina .bpm { display: none; }
+.rbox[hidden] { display: none; }
+#routineBox.inwork .rbox-head, #routineBox.inwork #rtClose, #routineBox.inwork #rtSave, #routineBox.inwork #rtSaved { display: none; }
+.mixitem .nm em.kind { display: inline-block; white-space: nowrap; color: #141a0f; background: var(--muted); border-radius: 99px; padding: 1px 8px; font-weight: 600; }
+.mixitem .nm em.kind.rt { background: var(--lime); }
 .rbox { display: grid; gap: 12px; padding: 16px; border: 1px solid var(--border); border-radius: 16px; background: var(--panel); margin-top: 12px; }
 .rbox-head { display: flex; flex-wrap: wrap; gap: 10px 16px; align-items: center; justify-content: space-between; }
 .rbox-head h2 { font-size: 16px; margin: 0 0 2px; }
@@ -520,6 +536,13 @@ ul.how b { color: var(--ink); font-weight: 600; }
     <section class="mixes" aria-label="Mis listas">
       <h2>Mis listas</h2>
       <div id="mixListMesa" class="mixlist"></div>
+    </section>
+    <section id="workBox" class="workbox" aria-label="Canción en trabajo">
+      <div class="wb-head"><span class="wb-k">Trabajando en</span><strong id="wbName">Ninguna canción</strong><span id="wbMeta" class="note"></span></div>
+      <div class="wb-modes" role="group" aria-label="Tipo de canción">
+        <button type="button" id="wbLibre" aria-pressed="false"><b>🎵 Libre</b><small>Un ritmo fijo: lo subes o bajas con − y +</small></button>
+        <button type="button" id="wbRutina" aria-pressed="false"><b>⏱ Rutina</b><small>Tramos de BPM para entrenar (de 90 a 120 en 3 min…)</small></button>
+      </div>
     </section>
     <div id="transportSlot"></div>
     <h2 class="sec-title">Mesa mezcladora</h2>
@@ -1942,12 +1965,36 @@ async function openMixById(id, then) {
   renderLoops(); layout();
   fixedBpm = m.bpm || fixedBpm; $('bpm').value = fixedBpm;
   if (Array.isArray(m.routine) && m.routine.length) { openRoutineEditor({ id: null, name: 'Rutina de ' + m.name, segs: m.routine }); setMode('routine'); }
-  else if (mode !== 'fixed') setMode('fixed');
+  else { if (mode !== 'fixed') setMode('fixed'); if (!$('routine').hidden && rtEditId === null) closeRoutineEditor(); }
   live(); fill(); draw(); frame(); changed(); renderMixes();
   if (then === 'mesa') { pageNow = 'mesa'; try { history.replaceState(null, '', '#listas'); } catch {} showPage(); }
   else if (!$('pageMesa').hidden) buildDesk();
 }
+// ---- The song being worked on (Mis listas): its name, and Libre or Rutina ----
+function workUi() {
+  let onMesa = false; try { onMesa = pageNow === 'mesa'; } catch (e) {}
+  const m = mixes.find((x) => x.id === openMix);
+  const isRt = !!(m && Array.isArray(m.routine) && m.routine.length);
+  $('wbName').textContent = m ? m.name : 'Ninguna canción';
+  $('wbMeta').textContent = m ? [m.style, isRt ? segsText(m.routine) + ' · ' + segsTime(m.routine) : (fixedBpm || m.bpm) + ' BPM'].filter(Boolean).join(' · ') : 'Elige una música de la lista con "Trabajar en ella".';
+  for (const [id, on] of [['wbLibre', m && !isRt], ['wbRutina', isRt]]) { $(id).setAttribute('aria-pressed', String(!!on)); $(id).disabled = !m; }
+  $('transport').classList.toggle('is-rutina', onMesa && isRt);
+  $('routineBox').classList.toggle('inwork', onMesa);
+  if (onMesa) $('routineBox').hidden = !isRt; else $('routineBox').hidden = false;
+}
+$('wbLibre').addEventListener('click', () => {
+  const m = mixes.find((x) => x.id === openMix); if (!m) return;
+  m.routine = null; if (!$('routine').hidden) closeRoutineEditor(); if (mode !== 'fixed') setMode('fixed');
+  storeMixes(); renderMixes();
+});
+$('wbRutina').addEventListener('click', () => {
+  const m = mixes.find((x) => x.id === openMix); if (!m || (Array.isArray(m.routine) && m.routine.length)) return;
+  const b = Math.max(MIN, Math.min(MAX - 20, m.bpm || fixedBpm));
+  openRoutineEditor({ id: null, name: 'Rutina de ' + m.name, segs: [{ from: b, to: b + 10, min: 3 }, { from: b + 10, to: b + 20, min: 3 }] });
+  setMode('routine'); m.routine = JSON.parse(JSON.stringify(routine)); storeMixes(); renderMixes();
+});
 function renderMixes() {
+  workUi();
   for (const boxId of ['mixListMesa']) {
     const box = $(boxId); box.innerHTML = '';
     if (!mixes.length) { box.innerHTML = '<p class="note">Todavía no hay músicas guardadas. Ve a <b>1 · Crear música</b>, crea o trae una música y pulsa <b>Guardar</b>: aparece aquí.</p>'; continue; }
@@ -1960,8 +2007,9 @@ function renderMixes() {
       const nT = (m.loops || []).length, temas = nT ? nT + (nT === 1 ? ' tema' : ' temas') : '—';
       const cells = [['n', (mixes.indexOf(m) + 1) + '.'], ['nm', m.name], ['c', m.style || '—'], ['c', (m.bpm || '?') + ' BPM'], ['c', temas], ['c', when]];
       for (const [cls, txt] of cells) { const d = document.createElement('div'); d.className = cls; d.textContent = txt; row.appendChild(d); }
-      if (m.id === openMix) { const e = document.createElement('em'); e.textContent = 'abierta'; row.querySelector('.nm').appendChild(e); }
-      if (Array.isArray(m.routine) && m.routine.length) { const e = document.createElement('em'); e.textContent = '⏱ rutina ' + m.routine.map((x) => x.to).join('→'); row.querySelector('.nm').appendChild(e); }
+      const isRt = Array.isArray(m.routine) && m.routine.length;
+      { const e = document.createElement('em'); e.className = 'kind' + (isRt ? ' rt' : ''); e.textContent = isRt ? '⏱ Rutina ' + segsText(m.routine) : '🎵 Libre'; row.querySelector('.nm').appendChild(e); }
+      if (m.id === openMix) { const e = document.createElement('em'); e.textContent = '✎ trabajando'; row.querySelector('.nm').appendChild(e); }
       const parts = (m.loops || []).map((l) => '🎵 ' + (l.name || 'Tema'));
       const inst = (m.instruments || []).map((id) => NAMES[id] || id);
       if (parts.length || inst.length) {
@@ -1975,7 +2023,7 @@ function renderMixes() {
       const mk = (label, fn) => { const b = document.createElement('button'); b.type = 'button'; b.textContent = label; b.addEventListener('click', fn); acts.appendChild(b); return b; };
       const isOn = playing && m.id === openMix;
       mk(isOn ? '■ Stop' : '▶ Escuchar', async () => { if (playing && m.id === openMix) { stop(); return; } stopPreview(); if (playing) stop(); await openMixById(m.id); if (!playing && engine) await start(); }).className = 'go';
-      mk(m.id === openMix ? '✓ Abierta' : 'Modificar', async () => { stopPreview(); await openMixById(m.id, 'mesa'); });
+      mk(m.id === openMix ? '✓ Trabajando' : 'Trabajar en ella', async () => { stopPreview(); await openMixById(m.id, 'mesa'); });
       mk('✎ Nombre', () => inlineRename(row, m.name, (v) => { if (v) { m.name = v; storeMixes(); } renderMixes(); }));
       mk(m.publish ? '✓ En repositorio' : '→ Repositorio', () => { m.publish = !m.publish; storeMixes(); renderMixes(); });
       const del = mk('Borrar', () => {
@@ -2500,9 +2548,9 @@ function showPage() {
     $(page).hidden = name !== pageNow;
     if (name === pageNow) $(tab).setAttribute('aria-current', 'page'); else $(tab).removeAttribute('aria-current');
   }
-  if (pageNow === 'mesa') { $('transportSlot').appendChild($('transport')); $('transport').after($('routineBox')); layout(); draw(); buildDesk(); requestAnimationFrame(meters); }
-  else if (pageNow === 'pub') { $('pubSlot').appendChild($('transport')); renderPub(); loadRepoDb(); }
-  else { $('saveBar').before($('transport')); $('transport').after($('routineBox')); if (!$('paneTraer').hidden) incOpen(); }
+  if (pageNow === 'mesa') { $('transportSlot').appendChild($('transport')); $('transport').after($('routineBox')); workUi(); layout(); draw(); buildDesk(); requestAnimationFrame(meters); }
+  else if (pageNow === 'pub') { $('pubSlot').appendChild($('transport')); workUi(); renderPub(); loadRepoDb(); }
+  else { $('saveBar').before($('transport')); $('transport').after($('routineBox')); workUi(); if (!$('paneTraer').hidden) incOpen(); }
 }
 for (const [name, [, tab]] of Object.entries(PAGES)) {
   $(tab).addEventListener('click', (e) => {
