@@ -1123,6 +1123,7 @@ function draw() {
   const now = shownBpm();
   for (const r of rows) {
     const s = settings[r.id], h = L.row - 3, isSel = r.id === selected;
+    if (!s) continue; // a track that was just removed, before the rows are laid out again
     if (r.group) { g2.fillStyle = muted2; g2.font = '700 10px Inter, sans-serif'; g2.fillText(r.group, 10, r.y + 17); }
     g2.fillStyle = isSel ? '#2c3523' : 'transparent';
     if (isSel) g2.fillRect(64, r.y, L.label - 72, h);
@@ -1571,7 +1572,8 @@ async function addLoopFile(file, meta = {}) {
     if (!$('pageMesa').hidden) buildDesk();
     if (!meta.quiet) saveOpenMix();
     return id;
-  } catch {
+  } catch (e) {
+    console.error('addLoopFile', e);
     $('loopList').insertAdjacentHTML('afterbegin', '<p class="note">No se pudo leer ese archivo. Prueba con un WAV o MP3.</p>');
     return false;
   }
@@ -2598,7 +2600,7 @@ async function trackAdd(x, btn, row) {
     // On Crear música each track becomes a new music, saved straight into Mis
     // listas; on Mis listas it goes into the music that is open.
     const fresh = pageNow === 'pista' || !openMix;
-    if (fresh) { if (playing) stop(); openMix = null; draft = null; clearLoops(); silenceKit(); renderLoops(); layout(); }
+    if (fresh) { if (playing) stop(); openMix = null; draft = null; clearLoops(); renderLoops(); layout(); silenceKit(); }
     // A new mix takes the track's own tempo (when known), so it plays at its natural speed.
     if (fresh && x.b) { fixedBpm = Math.min(MAX, Math.max(MIN, x.b)); $('bpm').value = fixedBpm; if (mode !== 'fixed') setMode('fixed'); frame(); }
     ok = await addLoopFile(new File([blob], x.file), { name: x.t, bpm: x.b || fixedBpm, src: x.src, credit: x.credit, settings: fresh ? { gain: 1 } : undefined });
@@ -2607,7 +2609,7 @@ async function trackAdd(x, btn, row) {
       $('saveMix').disabled = true; $('saveMix').textContent = 'Guardar'; $('saveBar').classList.remove('ready');
       $('saveNote').textContent = '«' + x.t + '» quedó en Mis listas.';
     }
-  } catch {}
+  } catch (e) { console.error('trackAdd', e); }
   if (!ok) { btn.disabled = false; btn.textContent = 'No se pudo traer. Reintentar'; return; }
   btn.textContent = '✓ En Mis listas';
   if (!row.querySelector('.go-listas')) {
