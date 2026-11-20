@@ -133,6 +133,9 @@ ul.how b { color: var(--ink); font-weight: 600; }
 .artist a { color: var(--lime); }
 .artist .tracks button.ref:not([aria-pressed="true"]) { border-color: var(--lime); color: var(--lime); }
 .artist .tracks button.ref::after { content: ' ★ referencia'; font-size: 11px; opacity: .8; }
+.artist .refopts { display: flex; flex-wrap: wrap; gap: 8px 14px; margin-top: 6px; font-size: 13px; }
+.artist .refopts label { display: inline-flex; align-items: center; gap: 6px; }
+.artist .refopts select { min-height: 32px; background: #1b2215; color: var(--ink); border: 1px solid var(--border); border-radius: 8px; padding: 0 8px; }
 .artist .refgo { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-top: 6px; }
 .artist .refgo .note { flex: 1 1 200px; font-size: 12px; }
 .artist .alts { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 4px; }
@@ -225,6 +228,9 @@ ul.how b { color: var(--ink); font-weight: 600; }
 #routineBox.inwork .rbox-head, #routineBox.inwork #rtClose, #routineBox.inwork #rtSave, #routineBox.inwork #rtSaved { display: none; }
 .mixitem .nm em.kind { display: inline-block; white-space: nowrap; color: #141a0f; background: var(--muted); border-radius: 99px; padding: 1px 8px; font-weight: 600; }
 .mixitem .nm em.kind.rt { background: var(--lime); }
+.vol { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; color: var(--muted); flex: 0 0 auto; }
+.vol input[type=range] { width: 110px; flex: none; accent-color: var(--lime); }
+.vol output { min-width: 2.2em; font-variant-numeric: tabular-nums; }
 .jredit { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 6px; font-size: 13px; color: var(--muted); }
 .jredit[hidden] { display: none; }
 .jredit input { width: 64px; }
@@ -501,6 +507,7 @@ ul.how b { color: var(--ink); font-weight: 600; }
       <output id="bpmOut" for="bpm">90</output><small>BPM</small>
       <span id="phase" class="phase">Spa</span>
     </div>
+    <label class="vol" title="Volumen"><span id="volIc" aria-hidden="true">🔊</span><input id="vol" type="range" min="0" max="100" step="1" value="80" aria-label="Volumen"><output id="volOut">80</output></label>
     <span id="status" class="status" role="status">Conectando…</span>
     <div id="seqBar" class="seqbar" hidden>
       <button id="seqPrev" type="button" class="bpmstep" aria-label="Tramo anterior">⏮</button>
@@ -753,7 +760,7 @@ function applyEchoMaster() {
   if (!ctx || !echoDelay) return;
   echoDelay.delayTime.setTargetAtTime(deskMaster.time, ctx.currentTime, 0.05);
   echoFb.gain.setTargetAtTime(deskMaster.repeats, ctx.currentTime, 0.05);
-  if (master) master.gain.setTargetAtTime(deskMaster.volume, ctx.currentTime, 0.03);
+  if (master) master.gain.setTargetAtTime(deskMaster.volume * listenVol, ctx.currentTime, 0.03);
 }
 function saveDesk() { try { localStorage.setItem(DESK_STORE, JSON.stringify({ desk, master: deskMaster })); } catch {} if (typeof saveOpenMix === 'function') saveOpenMix(); }
 try {
@@ -925,6 +932,8 @@ class Engine {
 }
 
 // ---- Audio: blocks rendered just ahead of the clock ----
+// Listening volume (the player bar's slider), on top of the Mesa's master; kept in this browser.
+let listenVol = 0.8; try { const v = Number(localStorage.getItem('mezcladorrr.volumen')); if (localStorage.getItem('mezcladorrr.volumen') !== null && isFinite(v)) listenVol = Math.max(0, Math.min(1, v)); } catch (e) {}
 let ctx = null, engine = null, samples = null, master = null, echoIn = null, echoDelay = null, echoFb = null, timer = null, nextTime = 0, playing = false;
 let mode = 'fixed', journeyStart = 0, fixedBpm = 90, seekT = 0;
 let routine = [{ from: 90, to: 120, min: 3 }, { from: 120, to: 130, min: 3 }, { from: 130, to: 100, min: 2 }];
@@ -1032,7 +1041,7 @@ async function start() {
   if (!engine) return;
   if (typeof stopPreview === 'function') stopPreview();
   await ctx.resume();
-  master = ctx.createGain(); master.gain.value = deskMaster.volume; master.connect(ctx.destination);
+  master = ctx.createGain(); master.gain.value = deskMaster.volume * listenVol; master.connect(ctx.destination);
   // Echo bus: delay with feedback, then into the master.
   echoIn = ctx.createGain(); echoDelay = ctx.createDelay(2); echoFb = ctx.createGain();
   echoIn.connect(echoDelay); echoDelay.connect(echoFb); echoFb.connect(echoDelay); echoDelay.connect(master);
@@ -1281,6 +1290,13 @@ function setMode(m) {
   frame();
 }
 $('modeFixed').addEventListener('click', () => setMode('fixed'));
+function volUi() { const v = Math.round(listenVol * 100); $('vol').value = v; $('volOut').textContent = v; $('volIc').textContent = v === 0 ? '🔇' : v < 40 ? '🔉' : '🔊'; }
+$('vol').addEventListener('input', () => {
+  listenVol = Number($('vol').value) / 100; volUi();
+  try { localStorage.setItem('mezcladorrr.volumen', String(listenVol)); } catch (e) {}
+  if (master && ctx) master.gain.setTargetAtTime(deskMaster.volume * listenVol, ctx.currentTime, 0.03);
+});
+volUi();
 function journeyUi() {
   $('modeJourney').textContent = 'Recorrido ' + JOURNEY.from + ' → ' + JOURNEY.to;
   $('jrFrom').value = JOURNEY.from; $('jrTo').value = JOURNEY.to; $('jrMin').value = +(JOURNEY.seconds / 60).toFixed(1);
@@ -1440,7 +1456,7 @@ function repoItem(tipo, x) {
   if (tipo === 'rutina') return { tipo, id: x.id, nombre: x.name, bpm: x.segs[0]?.from, duracion_seg: x.segs.reduce((a, s) => a + Math.max(0, +s.min || 0) * 60, 0), datos: { version: 1, tramos: x.segs } };
   const loopsOut = (x.loops || []).filter((l) => !/dzcdn|deezer/i.test(l.src || '')).map((l) => ({ nombre: l.name, url: l.src, credito: l.credit || null, beats: l.beats, ajustes: l.settings || null, mesa: l.desk || null }));
   return { tipo, id: x.id, nombre: x.name, estilo: x.style, bpm: x.bpm,
-    datos: { version: 1, nombre: x.name, estilo: x.style, bpm: x.bpm, instrumentos: x.instruments || null, mezcla: x.mix || {}, mesa: x.desk || {}, master: x.master || null, temas: loopsOut, rutina: x.routine || null, inspirada_en: x.ref ? { artista: x.ref.artist, nota: 'Música original con el kit de la app; no contiene audio del artista.' } : null },
+    datos: { version: 1, nombre: x.name, estilo: x.style, bpm: x.bpm, instrumentos: x.instruments || null, mezcla: x.mix || {}, mesa: x.desk || {}, master: x.master || null, temas: loopsOut, rutina: x.routine || null, inspirada_en: x.ref ? { artista: x.ref.artist, nota: loopsOut.length ? 'Hecha sobre una canción libre (ver créditos); no contiene audio del artista.' : 'Música original con el kit de la app; no contiene audio del artista.' } : null },
     creditos: loopsOut.filter((l) => l.credito).map((l) => ({ tema: l.nombre, credito: l.credito, url: l.url })) };
 }
 async function exportOne(tipo, x, btn, quiet) {
@@ -1793,6 +1809,11 @@ async function musicBrainz(q) {
     return (await r.json()).artists || null;
   } catch { return null; }
 }
+async function mbGenre(name) {
+  const mb = await musicBrainz('artist:"' + name + '"');
+  const a = (mb || []).find((x) => fold(x.name) === fold(name)) || (mb || [])[0];
+  return a ? (a.tags || []).sort((x, y) => y.count - x.count).slice(0, 4).map((t) => t.name).join(', ') : '';
+}
 async function claudeArtist(q) {
   const sample = await claudeSample();
   if (!sample) return null;
@@ -1875,11 +1896,17 @@ function showArtist(list, q) {
       (meta ? '<span>' + esc(meta) + '</span>' : '') +
       (fans ? '<span>' + esc(fans) + '</span>' : '') +
       '<div class="listen"><span><b>1.</b> Elige una canción de referencia para copiar su estilo (solo se escucha aquí, 30 s; no se guarda ni se sube a la app):</span><div class="tracks"><span class="note">Buscando sus canciones…</span></div></div>' +
-      '<div class="refgo"><button type="button" class="primary refbtn">2. Crear en este estilo</button><span class="note">Crea una música <b>original</b> con los instrumentos del kit (tempo, género y energía parecidos) y la guarda en Mis listas.</span></div>' +
+      '<div class="refopts"><label>Estilo <select class="refstyle"><option value="">Automático</option>' + Object.entries(Generador.GENRES).map(([k, g]) => '<option value="' + k + '">' + esc(g.name) + '</option>').join('') + '</select></label>' +
+      '<label>Voz <select class="refvoice"><option value="no">Sin voz</option><option value="si">Con voz</option></select></label></div>' +
+      '<div class="refgo"><button type="button" class="primary refbtn">2. Crear en este estilo</button><span class="note">Con estilos como reggae, rock, jazz, latina o pop, o con voz, usa como base una canción libre de ese estilo (instrumentos reales, crédito incluido). Con estilos electrónicos usa el kit. Se guarda en Mis listas.</span></div>' +
       (list.length > 1 ? '<div class="alts"><span>¿No es este?</span></div>' : '') + '</div>';
     refTrack = null;
     loadTracks(a, box.querySelector('.tracks'));
     box.querySelector('.refbtn').addEventListener('click', () => createMusic($('aiText').value));
+    // Which style is this artist? MusicBrainz's tags tell; it preselects the list (you can change it).
+    const sel = box.querySelector('.refstyle');
+    const guess = (g) => { const k = String(g || '').split(',').map((t) => Generador.read(t).genre).find(Boolean); if (k && sel.value === '' && box.isConnected && artistPick === a) sel.value = k; };
+    if (a.genre) guess(a.genre); else mbGenre(a.name).then((g) => { if (g) { a.genre = g; guess(g); } });
     const alts = box.querySelector('.alts');
     if (alts) list.forEach((b, j) => {
       if (j === i) return;
@@ -2119,6 +2146,21 @@ function flashMap() { const m = document.querySelector('.map'); m.classList.add(
 $('abBefore').addEventListener('click', async () => { showAb('before'); if (!playing && engine) await start(); });
 $('abAfter').addEventListener('click', async () => { showAb('after'); if (!playing && engine) await start(); });
 
+const REAL_STYLES = new Set(['reggae', 'rock', 'metal', 'jazz', 'latin', 'classical', 'chill', 'pop', 'hiphop', 'lofi']);
+const LIB_FOR = { reggae: /reggae|ska/i, rock: /rock/i, metal: /rock|metal/i, jazz: /jazz|noire|lounge|swing|blues/i, latin: /latin|salsa|tango|samba|bossa|cumbia/i,
+  classical: /classic|orchestra|baroque|piano/i, chill: /serenity|ambient|calm|chill|meditat/i, pop: /pop|bright|uplifting/i, hiphop: /hip ?hop|rap\b|urban/i, lofi: /lo-?fi|chill|jazz/i,
+  house: /disco|funk|dance|house/i, edm: /electronic|dance|synth/i, techno: /techno|electronic/i, trance: /trance|electronic/i, dnb: /drum|breakbeat|electronic/i, workout: /action|driving|rock|electronic/i };
+const VOICE_RE = /voice|vocal|choir|sing/i;
+async function realBase(gk, voice, bpm, seed) {
+  const cat = await incCatalog(); if (!cat) return null;
+  const re = LIB_FOR[gk] || /./, hay = (x) => [x.g, x.t, x.d, x.ins].join(' ');
+  let pool = cat.filter((x) => x.s >= 60 && re.test(hay(x)) && (!voice || VOICE_RE.test(x.ins || '')));
+  if (!pool.length && voice) pool = cat.filter((x) => x.s >= 60 && VOICE_RE.test(x.ins || ''));
+  if (!pool.length) return null;
+  pool.sort((a, b) => Math.abs((a.b || 110) - bpm) - Math.abs((b.b || 110) - bpm));
+  const top = pool.slice(0, 6); let h = 0; for (const c of String(seed)) h = (h * 31 + c.charCodeAt(0)) >>> 0;
+  return fromInc(top[h % top.length]);
+}
 async function createMusic(text) {
   text = text.trim();
   if (!text || !SONG.layers.length) return;
@@ -2128,6 +2170,10 @@ async function createMusic(text) {
   $('aiResult').textContent = 'La IA está escuchando lo que pediste…';
   const yt = Generador.youtubeId(text) || '';
   let hint = artistHint(text);
+  const card = hint ? $('artist') : null;
+  const pickStyle = card && card.querySelector('.refstyle') ? card.querySelector('.refstyle').value : '';
+  const wantVoice = !!(card && card.querySelector('.refvoice') && card.querySelector('.refvoice').value === 'si');
+  if (pickStyle) hint += ' (estilo elegido: ' + Generador.GENRES[pickStyle].name + ')';
   const ref = hint && refTrack ? refTrack : null;
   let refBpm = 0;
   if (ref) {
@@ -2135,7 +2181,7 @@ async function createMusic(text) {
     refBpm = full && full.bpm > 50 && full.bpm < 210 ? Math.round(full.bpm) : 0;
     hint += ' (canción de referencia para el estilo: «' + ref.title + '»' + (refBpm ? ', ' + refBpm + ' BPM' : '') + '; crea algo original, no la copies)';
   }
-  const words = text.replace(/https?:\/\/\S+/g, ' ') + hint;
+  const words = text.replace(/https?:\/\/\S+/g, ' ') + hint + (pickStyle ? ' ' + Generador.GENRES[pickStyle].name : '');
   let r, source = '', note = '';
   try {
     const d = (await claudeSample()) ? await askClaudeHere(text + hint, yt) : await askAi(text + hint, yt);
@@ -2170,10 +2216,37 @@ async function createMusic(text) {
   clearLoops(); addMix(name, r.label, fixedBpm);
   if (isArtist) { const m = mixes[0]; m.ref = { artist: artistPick.name, song: ref ? ref.title : null }; storeMixes(); }
   if (ref) source = 'Estilo tomado de «' + ref.title + '» de ' + artistPick.name + ' (solo como referencia). ';
+  // Real instruments: for acoustic styles, or when a voice is wanted, the base is a
+  // free song of that style from the library (CC BY, with its credit), not the kit.
+  let baseNote = '';
+  const gk = pickStyle || genreKey;
+  if (isArtist && (wantVoice || REAL_STYLES.has(gk))) {
+    $('aiResult').textContent = 'Buscando una canción libre de ' + (Generador.GENRES[gk] || { name: gk }).name + (wantVoice ? ' con voz' : '') + ' como base…';
+    const x = await realBase(gk, wantVoice, refBpm || r.bpm, name);
+    let ok = false;
+    if (x) try {
+      const res = await fetch(x.src); if (!res.ok) throw new Error();
+      ok = await addLoopFile(new File([await res.blob()], x.file), { name: x.t, bpm: x.b || fixedBpm, src: x.src, credit: x.credit, settings: { gain: 1 } });
+    } catch {}
+    if (ok) {
+      silenceKit();
+      if (x.b) { fixedBpm = Math.min(MAX, Math.max(MIN, x.b)); $('bpm').value = fixedBpm; }
+      const m = mixes[0];
+      Object.assign(m, { loops: loopsSnapshot(), mix: changes(), instruments: [], bpm: fixedBpm, kitFixed: true, style: (Generador.GENRES[gk] || { name: r.label }).name + (wantVoice ? ' con voz' : '') });
+      storeMixes(); renderMixes(); renderLoops(); live(); fill(); draw(); frame();
+      baseNote = 'Base: «' + x.t + '» de Kevin MacLeod (CC BY 4.0, ' + (x.b ? x.b + ' BPM' : '') + (wantVoice ? ', con voz' : '') + '), instrumentos reales. ';
+    } else baseNote = wantVoice || x ? 'No pude traer una canción libre de ese estilo (¿sin conexión?), así que la hice con el kit. ' : 'No encontré una canción libre de ese estilo, así que la hice con el kit. ';
+  }
   abState = { before, after: snapshot() };
   $('ab').hidden = false; $('abBefore').setAttribute('aria-pressed', 'false'); $('abAfter').setAttribute('aria-pressed', 'true');
   flashMap();
-  $('aiResult').innerHTML = esc(source) + '<b>' + esc(r.label) + ' · ' + r.bpm + ' BPM</b> con ' + esc(r.instruments.map(nameOf).join(', ')) + '. ' +
+  if (baseNote && mixes[0] && mixes[0].kitFixed) {
+    $('aiResult').innerHTML = esc(source) + '<b>' + esc(mixes[0].style) + ' · ' + fixedBpm + ' BPM</b>. ' + esc(baseNote) + '<b>Guardada en Mis listas</b> como «' + esc(name) + '», con su crédito.';
+    $('aiGo').disabled = false; $('aiGo').textContent = 'Crear música';
+    if (!playing && engine) await start();
+    return;
+  }
+  $('aiResult').innerHTML = esc(baseNote) + esc(source) + '<b>' + esc(r.label) + ' · ' + r.bpm + ' BPM</b> con ' + esc(r.instruments.map(nameOf).join(', ')) + '. ' +
     'Se van sumando al subir el BPM: ' + esc(r.instruments.map((id) => nameOf(id) + (settings[id].in[0] > MIN ? ' ' + settings[id].in[0] : '')).join(' → ')) + '. ' +
     esc(note) + (keyNote ? 'Tono ' + (keyNote > 0 ? '+' : '') + keyNote + '. ' : '') + '<b>Guardada en Mis listas</b> como «' + esc(name) + '»: es música original, lista para pasar al Repositorio.';
   $('aiGo').disabled = false; $('aiGo').textContent = 'Crear música';
