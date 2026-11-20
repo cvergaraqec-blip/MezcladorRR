@@ -225,6 +225,10 @@ ul.how b { color: var(--ink); font-weight: 600; }
 #routineBox.inwork .rbox-head, #routineBox.inwork #rtClose, #routineBox.inwork #rtSave, #routineBox.inwork #rtSaved { display: none; }
 .mixitem .nm em.kind { display: inline-block; white-space: nowrap; color: #141a0f; background: var(--muted); border-radius: 99px; padding: 1px 8px; font-weight: 600; }
 .mixitem .nm em.kind.rt { background: var(--lime); }
+.jredit { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 6px; font-size: 13px; color: var(--muted); }
+.jredit[hidden] { display: none; }
+.jredit input { width: 64px; }
+#transport.is-rutina .jredit { display: none; }
 .rbox { display: grid; gap: 12px; padding: 16px; border: 1px solid var(--border); border-radius: 16px; background: var(--panel); margin-top: 12px; }
 .rbox-head { display: flex; flex-wrap: wrap; gap: 10px 16px; align-items: center; justify-content: space-between; }
 .rbox-head h2 { font-size: 16px; margin: 0 0 2px; }
@@ -489,6 +493,7 @@ ul.how b { color: var(--ink); font-weight: 600; }
       <button id="modeFixed" aria-pressed="true">BPM fijo</button>
       <button id="modeJourney" aria-pressed="false">Recorrido 45 → 215</button>
     </div>
+    <span id="jrEdit" class="jredit" hidden>De <input id="jrFrom" type="number" min="40" max="220" step="1" aria-label="BPM inicial del recorrido"> a <input id="jrTo" type="number" min="40" max="220" step="1" aria-label="BPM final del recorrido"> BPM en <input id="jrMin" type="number" min="0.5" max="60" step="0.5" aria-label="Minutos del recorrido"> min</span>
     <div class="bpm">
       <button id="bpmDown" class="bpmstep" type="button" aria-label="Bajar BPM">−</button>
       <input id="bpm" type="range" min="40" max="220" step="1" value="90" aria-label="BPM">
@@ -673,6 +678,8 @@ const GROUPS = [
   ['TUS LOOPS', []],
 ];
 const MIN = 40, MAX = 220, JOURNEY = { from: 45, to: 215, seconds: 150 };
+// The Recorrido's limits are yours to change (kept in this browser).
+try { const j = JSON.parse(localStorage.getItem('mezcladorrr.recorrido')); if (j && j.from !== j.to) Object.assign(JOURNEY, j); } catch (e) {}
 const DEFAULTS = {};
 // Editable settings per layer (song layers and the user's loops).
 const settings = {};
@@ -797,6 +804,45 @@ class Voice {
     return v;
   }
 }
+// A song played at another tempo without changing its pitch: short overlapping
+// pieces (grains, ~90 ms, Hann window at 50 % overlap) are read from the song at
+// the speed of the BPM and laid end to end at normal speed. At the song's own
+// BPM it plays the file exactly as it is; away from it there are no jumps.
+const GRAIN = 4096, GHOP = GRAIN / 2;
+const GWIN = (() => { const w = new Float32Array(GRAIN); for (let i = 0; i < GRAIN; i++) w[i] = Math.sin((Math.PI * i) / GRAIN) ** 2; return w; })();
+class Stretch {
+  constructor(data) { this.data = data; this.p = 0; this.toGrain = 0; this.g = []; this.on = false; this.last = -1; }
+  reset(at = 0) { this.p = at; this.toGrain = 0; this.g = []; this.last = -1; }
+  // WSOLA: start the new grain near the read point, at the spot that best
+  // continues the previous grain, so the overlapping pieces don't cancel out.
+  align(src, speed) {
+    const d = this.data, len = d.length;
+    if (this.last < 0 || Math.abs(speed - 1) < 0.002) return src;
+    const want = this.last + GHOP, R = 400, L = 384;
+    if (src - R < 0 || src + R + L >= len || want + L >= len) return src;
+    let best = 0, bestC = -Infinity;
+    for (let off = -R; off <= R; off += 2) {
+      let c = 0; const a = src + off;
+      for (let k = 0; k < L; k += 2) c += d[want + k] * d[a + k];
+      if (c > bestC) { bestC = c; best = off; }
+    }
+    return src + best;
+  }
+  next(speed) {
+    if (!this.on) return 0;
+    const d = this.data, len = d.length;
+    if (this.toGrain <= 0) { const src = this.align(Math.floor(this.p), speed); this.g.push({ src, i: 0 }); this.last = src; this.toGrain += GHOP; }
+    this.toGrain--;
+    let v = 0;
+    for (let k = this.g.length - 1; k >= 0; k--) {
+      const gr = this.g[k]; let j = gr.src + gr.i; if (j >= len) j -= len;
+      v += d[j] * GWIN[gr.i];
+      if (++gr.i >= GRAIN) this.g.splice(k, 1);
+    }
+    this.p += speed; if (this.p >= len) this.p -= len;
+    return v;
+  }
+}
 class Engine {
   constructor(rate, samples) {
     this.rate = rate;
@@ -814,7 +860,7 @@ class Engine {
     for (const l of [...this.layers, ...this.loopLayers]) { l.target = this.targetOf(l.id, bpm); if (instant) l.g = l.target; }
   }
   addLoop(loop) {
-    this.loopLayers.push({ id: loop.id, loop, voices: [new Voice(), new Voice()], cur: 0, tick: 0, g: 0, target: 0 });
+    this.loopLayers.push({ id: loop.id, loop, voices: [], st: new Stretch(loop.data), tick: 0, g: 0, target: 0 });
   }
   removeLoop(id) { this.loopLayers = this.loopLayers.filter((l) => l.id !== id); }
   tick() {
@@ -823,21 +869,17 @@ class Engine {
       const events = l.steps[this.step % l.length]; if (!events) continue;
       for (const [data, vel] of events) this.trigger(l, data, vel);
     }
-    // Your loops: re-cut on every 16th, so they follow the BPM without changing pitch (like Training's music).
+    // Your loops follow the BPM without changing pitch (time stretch, see Stretch).
+    // Each 16th they are checked against the beat; only if they drifted (over 60 ms)
+    // the read point moves, and the next grains blend it in smoothly.
     for (const l of this.loopLayers) {
       const slices = Math.max(1, l.loop.beats * 4);
-      const idx = l.tick % slices;
-      const start = Math.round((idx * l.loop.data.length) / slices);
-      const now = l.voices[l.cur];
+      const len = l.loop.data.length;
+      const start = Math.round(((l.tick % slices) * len) / slices);
       l.tick++;
-      // Only re-cut when the loop has drifted audibly (over ~30 ms); re-cutting on
-      // every 16th layered two copies of the song a few ms apart (a ghost sound underneath).
-      const len = l.loop.data.length, dpos = Math.abs(now.pos - start), drift = Math.min(dpos, len - dpos);
-      if (now.active && now.step >= 0 && drift <= this.rate * 0.03) continue;
-      now.fadeOut(256);
-      l.cur = 1 - l.cur;
-      l.voices[l.cur].start(l.loop.data, 1, 0, start, 32);
-      l.voices[l.cur].loop = true;
+      if (!l.st.on) { l.st.on = true; l.st.reset(start); continue; }
+      const dpos = Math.abs(l.st.p - start), drift = Math.min(dpos, len - dpos);
+      if (drift > this.rate * 0.06) l.st.p = start;
     }
   }
   trigger(l, data, vel) {
@@ -872,7 +914,11 @@ class Engine {
         let s = 0; for (const v of l.voices) if (v.data) s += v.next();
         if (s !== 0 || l.lp) this.channel(l, s * l.g, i, outL, outR, fxL, fxR);
       }
-      for (const l of this.loopLayers) { l.g += (l.target - l.g) * this.smooth; this.channel(l, (l.voices[0].next() + l.voices[1].next()) * l.g, i, outL, outR, fxL, fxR); }
+      for (const l of this.loopLayers) {
+        l.g += (l.target - l.g) * this.smooth;
+        const nat = (l.loop.beats * 60 * this.rate) / l.loop.data.length;
+        this.channel(l, l.st.next(this.bpm / nat) * l.g, i, outL, outR, fxL, fxR);
+      }
       outL[i] = softClip(outL[i]); outR[i] = softClip(outR[i]);
     }
   }
@@ -965,7 +1011,7 @@ function seqUi() {
   $('seqNow').textContent = fmtT(t); $('seqTot').textContent = fmtT(tot);
   const r = mode === 'routine' ? routineAt(t) : null;
   $('seqPrev').setAttribute('aria-label', mode === 'routine' ? 'Tramo anterior' : 'Atrás 15 s'); $('seqNext').setAttribute('aria-label', mode === 'routine' ? 'Tramo siguiente' : 'Adelante 15 s');
-  $('seqLabel').textContent = mode === 'routine' ? (r && !r.done ? 'Rutina · tramo ' + (r.i + 1) + ' de ' + routine.length : 'Rutina') + ' · arrastra la línea o usa ⏮ ⏭ para saltar de tramo' : 'Recorrido 45 → 215 · arrastra la línea para adelantar o retroceder';
+  $('seqLabel').textContent = mode === 'routine' ? (r && !r.done ? 'Rutina · tramo ' + (r.i + 1) + ' de ' + routine.length : 'Rutina') + ' · arrastra la línea o usa ⏮ ⏭ para saltar de tramo' : 'Recorrido ' + JOURNEY.from + ' → ' + JOURNEY.to + ' · arrastra la línea para adelantar o retroceder';
 }
 function pump() {
   while (nextTime < ctx.currentTime + AHEAD) {
@@ -1005,7 +1051,7 @@ function stop() {
   if (mode !== 'fixed') seekT = Math.max(0, ctx.currentTime - journeyStart);
   playing = false; clearInterval(timer);
   const m = master; m.gain.setTargetAtTime(0, ctx.currentTime, 0.05); setTimeout(() => m.disconnect(), 400);
-  for (const l of [...engine.layers, ...engine.loopLayers]) for (const v of l.voices) v.data = null;
+  for (const l of [...engine.layers, ...engine.loopLayers]) { for (const v of l.voices) v.data = null; if (l.st) l.st.on = false; }
   $('play').textContent = 'Play'; $('play').setAttribute('aria-pressed', 'false');
   if ($('rtPlay')) $('rtPlay').textContent = '▶ Probar rutina';
   if (typeof renderMixes === 'function') renderMixes();
@@ -1230,10 +1276,27 @@ function setMode(m) {
   $('modeFixed').setAttribute('aria-pressed', String(m === 'fixed'));
   $('modeJourney').setAttribute('aria-pressed', String(m === 'journey'));
   $('bpm').disabled = m !== 'fixed';
+  if ($('jrEdit')) journeyUi();
   $('rtPlay').textContent = m === 'routine' && playing ? '■ Parar rutina' : '▶ Probar rutina';
   frame();
 }
 $('modeFixed').addEventListener('click', () => setMode('fixed'));
+function journeyUi() {
+  $('modeJourney').textContent = 'Recorrido ' + JOURNEY.from + ' → ' + JOURNEY.to;
+  $('jrFrom').value = JOURNEY.from; $('jrTo').value = JOURNEY.to; $('jrMin').value = +(JOURNEY.seconds / 60).toFixed(1);
+  $('jrEdit').hidden = mode !== 'journey';
+}
+for (const id of ['jrFrom', 'jrTo', 'jrMin']) $(id).addEventListener('change', () => {
+  const clamp = (v, lo, hi, d) => { v = Number(v); return isFinite(v) ? Math.max(lo, Math.min(hi, v)) : d; };
+  let from = Math.round(clamp($('jrFrom').value, MIN, MAX, JOURNEY.from)), to = Math.round(clamp($('jrTo').value, MIN, MAX, JOURNEY.to));
+  if (from === to) to = Math.min(MAX, from + 1) === from ? from - 1 : Math.min(MAX, from + 1);
+  const secs = Math.round(clamp($('jrMin').value, 0.5, 60, JOURNEY.seconds / 60) * 60);
+  const t = mode === 'journey' ? Math.min(seqTime(), secs) : 0;
+  Object.assign(JOURNEY, { from, to, seconds: secs });
+  try { localStorage.setItem('mezcladorrr.recorrido', JSON.stringify(JOURNEY)); } catch (e) {}
+  journeyUi(); if (mode === 'journey') seekTo(t); frame();
+});
+journeyUi();
 $('modeJourney').addEventListener('click', () => setMode('journey'));
 const fmtT = (sec) => { sec = Math.max(0, Math.round(sec)); return Math.floor(sec / 60) + ':' + String(sec % 60).padStart(2, '0'); };
 function routineChanged() {
