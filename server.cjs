@@ -105,7 +105,7 @@ function passwordOk(req) {
   if (!m) return false;
   const [user, ...rest] = Buffer.from(m[1], 'base64').toString('utf8').split(':');
   if (user.trim().toLowerCase() !== SHARE_USER) return false;
-  const given = Buffer.from(rest.join(':'));
+  const given = Buffer.from(rest.join(':').trim().toLowerCase()); // phones capitalize the first letter
   const want = Buffer.from(sharePassword());
   return given.length === want.length && crypto.timingSafeEqual(given, want);
 }
