@@ -290,6 +290,9 @@ ul.how b { color: var(--ink); font-weight: 600; }
 .free input[type=search] { flex: 1 1 auto; min-width: 0; font: 500 15px var(--font-body); color: var(--ink); background: #141a0f; border: 1px solid #4b573c; border-radius: 10px; padding: 8px 12px; min-height: 42px; }
 @media (max-width: 620px) { .free form { flex-wrap: wrap; } .free input[type=search] { flex-basis: 100%; } }
 .freelist { display: grid; gap: 6px; }
+.plbar { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.plbar #plNow { flex: 1 1 200px; min-width: 0; }
+.freeitem.now { border-color: var(--lime); }
 .freeitem { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; padding: 8px 10px; border: 1px solid var(--line); border-radius: 10px; background: #161c11; }
 .freeitem .t { flex: 1 1 220px; min-width: 0; display: grid; }
 .freeitem .t strong { font-weight: 600; overflow-wrap: anywhere; }
@@ -448,6 +451,7 @@ ul.how b { color: var(--ink); font-weight: 600; }
         <button type="button" data-t="mid" aria-pressed="false">Para trotar (100 a 140)</button>
         <button type="button" data-t="fast" aria-pressed="false">Para correr (más de 140)</button>
       </div>
+      <div id="plBar" class="plbar"><button type="button" id="plAll" class="primary">▶ Reproducir todo</button><button type="button" id="plPrev" aria-label="Canción anterior" disabled>⏮</button><button type="button" id="plNext" aria-label="Canción siguiente" disabled>⏭</button><span id="plNow" class="note">Escucha la lista seguida, una canción tras otra.</span></div>
       <div id="incList" class="freelist"></div>
       <div class="row"><button type="button" id="incMore" hidden>Ver más</button></div>
     </section>
@@ -1235,7 +1239,7 @@ function renderRoutine() {
   routineChanged();
 }
 $('muteAll').addEventListener('click', () => {
-  try { stopPreview(); } catch (e) {}
+  try { stopPreview(); plStop(); for (const b of document.querySelectorAll('.freeitem button[aria-pressed]')) if (b.textContent === '■ Parar') b.textContent = '▶ Escuchar'; } catch (e) {}
   if (playing) stop();
   if (mode !== 'fixed') setMode('fixed');
   for (const a of document.querySelectorAll('audio, video')) { try { a.pause(); } catch (e) {} }
@@ -1827,7 +1831,7 @@ function artistHint(text) {
 // ---- Listen to the artist first: Deezer's 30-second previews of their top songs ----
 const preview = new Audio();
 let previewBtn = null;
-preview.addEventListener('ended', () => { if (previewBtn) previewBtn.setAttribute('aria-pressed', 'false'); previewBtn = null; });
+preview.addEventListener('ended', () => { if (previewBtn) { previewBtn.setAttribute('aria-pressed', 'false'); if (previewBtn.textContent === '■ Parar') previewBtn.textContent = '▶ Escuchar'; } previewBtn = null; });
 function stopPreview() { preview.pause(); if (previewBtn) previewBtn.setAttribute('aria-pressed', 'false'); previewBtn = null; pv.remove(); }
 // The little player shown in the row that is playing: pause, seek and volume.
 const pv = document.createElement('div'); pv.className = 'pv';
@@ -2313,6 +2317,37 @@ async function ovSearch(q, page = 1, size = 20) {
     return { count: d.result_count || 0, pages: d.page_count || 1, items: (d.results || []).filter((x) => x.url && OV_LIC[x.license]).map(fromOv) };
   } catch { return null; }
 }
+// ---- Reproducir todo: the library list plays as a playlist, one song after another ----
+let plOn = false, plRow = null;
+const plRows = () => [...$('incList').querySelectorAll('.freeitem')];
+function plMark(row) {
+  for (const r of document.querySelectorAll('.freeitem.now')) r.classList.remove('now');
+  plRow = row.parentElement === $('incList') ? row : null;
+  if (plRow) plRow.classList.add('now');
+  plUi();
+}
+function plUi() {
+  const rows = plRows(), i = rows.indexOf(plRow);
+  $('plAll').textContent = plOn ? '■ Parar la lista' : '▶ Reproducir todo';
+  $('plPrev').disabled = !plOn || i <= 0; $('plNext').disabled = !plOn || i < 0 || i >= rows.length - 1;
+  $('plNow').textContent = plOn && i >= 0 ? 'Sonando ' + (i + 1) + ' de ' + rows.length + ': ' + plRow.querySelector('strong').textContent
+    : 'Escucha la lista seguida, una canción tras otra.';
+}
+function plGo(row) { if (!row) { plStop(); stopPreview(); return; } row._play.click(); row.scrollIntoView({ block: 'nearest', behavior: 'smooth' }); }
+function plStop() { plOn = false; plUi(); }
+function plStep(d) {
+  const rows = plRows(), i = rows.indexOf(plRow);
+  if (i + d >= rows.length && !$('incMore').hidden) { $('incMore').click(); setTimeout(() => plGo(plRows()[i + d]), 400); return; }
+  plGo(rows[i + d]);
+}
+$('plAll').addEventListener('click', () => {
+  if (plOn) { plStop(); if (previewBtn) previewBtn.click(); return; }
+  const rows = plRows(); if (!rows.length) return;
+  plOn = true; plGo(plRow && rows.includes(plRow) ? plRow : rows[0]);
+});
+$('plPrev').addEventListener('click', () => plStep(-1));
+$('plNext').addEventListener('click', () => plStep(1));
+preview.addEventListener('ended', () => { if (plOn && plRow) { plRow._play.textContent = '▶ Escuchar'; plStep(1); } });
 function trackRow(x) {
   const row = document.createElement('div'); row.className = 'freeitem';
   row.innerHTML = '<div class="t"><strong></strong><span></span><em></em><a target="_blank" rel="noopener"></a></div>';
@@ -2322,13 +2357,15 @@ function trackRow(x) {
   const a = row.querySelector('a'); a.href = x.link; a.textContent = x.linkText;
   const play = document.createElement('button'); play.type = 'button'; play.textContent = '▶ Escuchar'; play.setAttribute('aria-pressed', 'false');
   play.addEventListener('click', () => {
-    if (previewBtn === play) { stopPreview(); play.textContent = '▶ Escuchar'; return; }
+    if (previewBtn === play) { stopPreview(); play.textContent = '▶ Escuchar'; plStop(); return; }
     if (previewBtn) previewBtn.textContent = '▶ Escuchar';
     stopPreview(); if (playing) stop();
     preview.src = x.play; preview.play().catch(() => {});
     previewBtn = play; play.setAttribute('aria-pressed', 'true'); play.textContent = '■ Parar';
     showPlayer(row.querySelector('.t'));
+    plMark(row);
   });
+  row._play = play;
   const add = document.createElement('button'); add.type = 'button'; add.className = 'primary'; add.textContent = '＋ Agregar a Mis listas';
   add.addEventListener('click', () => trackAdd(x, add, row));
   row.append(play, add);
