@@ -20,6 +20,7 @@ if ((Test-Path $tokFile) -and (Test-Path $domFile)) {
   $dom = ((Get-Content $domFile -Raw).Trim() -replace '^https?://', '' -replace '/.*$', '')
   $desk = [Environment]::GetFolderPath('Desktop')
   $keyFile = Join-Path $env:USERPROFILE '.mezclador-clave'
+  $ErrorActionPreference = 'Continue'
   while ($true) {
     $clave = if (Test-Path $keyFile) { (Get-Content $keyFile -Raw).Trim() } else { '(abre primero el Mezclador)' }
     @(
