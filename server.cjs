@@ -90,6 +90,7 @@ function send(res, status, type, body) {
 // carries cf-connecting-ip or a Host that isn't this PC, and must give the password. The
 // password is created once on this PC (~/.mezclador-clave); Tunel.ps1 writes it, with the
 // link, to the Desktop file for the partner. Nobody else ever sees it.
+const SHARE_USER = 'radiorun';
 const KEY_FILE = path.join(os.homedir(), '.mezclador-clave');
 function sharePassword() {
   try { const k = fs.readFileSync(KEY_FILE, 'utf8').trim(); if (k.length >= 8) return k; } catch {}
@@ -102,7 +103,9 @@ const isRemote = (req) => Boolean(req.headers['cf-connecting-ip']) || !/^(localh
 function passwordOk(req) {
   const m = /^Basic\s+(.+)$/i.exec(req.headers.authorization || '');
   if (!m) return false;
-  const given = Buffer.from(Buffer.from(m[1], 'base64').toString('utf8').replace(/^[^:]*:/, ''));
+  const [user, ...rest] = Buffer.from(m[1], 'base64').toString('utf8').split(':');
+  if (user.trim().toLowerCase() !== SHARE_USER) return false;
+  const given = Buffer.from(rest.join(':'));
   const want = Buffer.from(sharePassword());
   return given.length === want.length && crypto.timingSafeEqual(given, want);
 }
@@ -256,7 +259,7 @@ function startTunnel() {
   const log = (m) => console.log('[túnel] ' + m);
   let child = null, link = null, misses = 0;
   const write = (fixed) => {
-    const lines = ['Mezclador RadioRun, para tu socio', '', 'Enlace:  ' + link, 'Usuario: socio', 'Clave:   ' + sharePassword(), '',
+    const lines = ['Mezclador RadioRun, para tu socio', '', 'Enlace:  ' + link, 'Usuario: ' + SHARE_USER, 'Clave:   ' + sharePassword(), '',
       fixed ? 'Este enlace es fijo: no cambia aunque reinicies el PC. Funciona mientras el PC esté encendido.' : 'Pásale estas tres líneas. El enlace funciona mientras este PC esté encendido.',
       fixed ? 'La primera vez ngrok muestra un aviso: pulsa "Visit Site" y luego pon usuario y clave.' : 'Si el PC se reinicia o el túnel se cae, el enlace cambia: este archivo se actualiza solo.',
       'Actualizado: ' + new Date().toLocaleString('es')];
