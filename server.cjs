@@ -244,7 +244,7 @@ function handle(req, res) {
 
 // The tunnel for the partner, run by this server (so nothing else has to start at login).
 // tunel/ngrok.exe + ngrok-token.txt + ngrok-dominio.txt → fixed link; else tunel/cloudflared.exe →
-// a link that changes. The current link, user and password go to Desktop/Mezclador-socio.txt.
+// a link that changes. The current link, user and password go to Desktop/mezclador-radiorun.txt.
 // Every minute it checks that the link answers; after 3 misses it starts the tunnel again.
 // MEZCLADOR_TUNEL=0 turns it off.
 function startTunnel() {
@@ -255,7 +255,7 @@ function startTunnel() {
   const f = (n) => path.join(dir, n);
   const read = (n) => { try { return fs.readFileSync(f(n), 'utf8').trim(); } catch { return ''; } };
   const exe = (n) => fs.existsSync(f(n + '.exe')) ? f(n + '.exe') : null;
-  const out = path.join(os.homedir(), 'Desktop', 'Mezclador-socio.txt');
+  const out = path.join(os.homedir(), 'Desktop', 'mezclador-radiorun.txt');
   const log = (m) => console.log('[túnel] ' + m);
   let child = null, link = null, misses = 0;
   const write = (fixed) => {

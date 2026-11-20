@@ -1,6 +1,6 @@
 ﻿# Comparte el Mezclador (http://localhost:8099) con tu socio por internet, con un túnel
 # gratis de Cloudflare. Pide clave: el enlace y la clave quedan en el Escritorio, en
-# "Mezclador-socio.txt". El enlace cambia cada vez que se reinicia el PC; la clave no.
+# "mezclador-radiorun.txt". El enlace cambia cada vez que se reinicia el PC; la clave no.
 # Para dejar de compartir: cierra "cloudflared" en el Administrador de tareas.
 $ErrorActionPreference = 'Stop'
 # Enlace FIJO (gratis) con ngrok: si en esta carpeta están "ngrok-token.txt" (el authtoken de tu
@@ -33,7 +33,7 @@ if ((Test-Path $tokFile) -and (Test-Path $domFile)) {
       'Este enlace es fijo: no cambia aunque reinicies el PC. Funciona mientras el PC esté encendido.',
       'La primera vez ngrok muestra un aviso: pulsa "Visit Site" y luego pon usuario y clave.',
       "Actualizado: $(Get-Date -Format 'yyyy-MM-dd HH:mm')"
-    ) | Set-Content -Path (Join-Path $desk 'Mezclador-socio.txt') -Encoding UTF8
+    ) | Set-Content -Path (Join-Path $desk 'mezclador-radiorun.txt') -Encoding UTF8
     $p = Start-Process -FilePath $ngrok -ArgumentList 'http', '--url', "https://$dom", 'http://127.0.0.1:8099', '--log', (Join-Path $env:TEMP 'mezclador-ngrok.log') -WindowStyle Hidden -PassThru
     $p.WaitForExit()
     Start-Sleep -Seconds 10
@@ -45,7 +45,7 @@ if (-not (Test-Path $exe)) {
   Invoke-WebRequest 'https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-windows-amd64.exe' -OutFile $exe -UseBasicParsing
 }
 $desk = [Environment]::GetFolderPath('Desktop')
-$txt = Join-Path $desk 'Mezclador-socio.txt'
+$txt = Join-Path $desk 'mezclador-radiorun.txt'
 $log = Join-Path $env:TEMP 'mezclador-tunel.log'
 $keyFile = Join-Path $env:USERPROFILE '.mezclador-clave'
 $ErrorActionPreference = 'Continue'  # from here on, a hiccup must never stop the loop
