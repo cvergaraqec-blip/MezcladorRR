@@ -1,4 +1,4 @@
-# Comparte el Mezclador (http://localhost:8099) con tu socio por internet, con un túnel
+﻿# Comparte el Mezclador (http://localhost:8099) con tu socio por internet, con un túnel
 # gratis de Cloudflare. Pide clave: el enlace y la clave quedan en el Escritorio, en
 # "Mezclador-socio.txt". El enlace cambia cada vez que se reinicia el PC; la clave no.
 # Para dejar de compartir: cierra "cloudflared" en el Administrador de tareas.
@@ -47,13 +47,24 @@ $desk = [Environment]::GetFolderPath('Desktop')
 $txt = Join-Path $desk 'Mezclador-socio.txt'
 $log = Join-Path $env:TEMP 'mezclador-tunel.log'
 $keyFile = Join-Path $env:USERPROFILE '.mezclador-clave'
+$ErrorActionPreference = 'Continue'  # from here on, a hiccup must never stop the loop
+# Is the tunnel really answering? (a quick tunnel can die while cloudflared keeps running:
+# "Tunnel not found"). 401 = alive and asking for the password.
+function Alive($u) {
+  try { Invoke-WebRequest $u -UseBasicParsing -TimeoutSec 20 | Out-Null; return $true }
+  catch { $r = $_.Exception.Response; return [bool]($r -and [int]$r.StatusCode -eq 401) }
+}
 while ($true) {
   Remove-Item $log -ErrorAction SilentlyContinue
   $p = Start-Process -FilePath $exe -ArgumentList 'tunnel', '--no-autoupdate', '--url', 'http://127.0.0.1:8099', '--logfile', $log -WindowStyle Hidden -PassThru
   $link = $null
   for ($i = 0; $i -lt 60 -and -not $link -and -not $p.HasExited; $i++) {
     Start-Sleep -Seconds 2
-    if (Test-Path $log) { $m = Select-String -Path $log -Pattern 'https://[a-z0-9-]+\.trycloudflare\.com' | Select-Object -First 1; if ($m) { $link = $m.Matches[0].Value } }
+    try {
+      # Read a copy: cloudflared keeps the log open while it writes.
+      $t = [IO.File]::Open($log, 'Open', 'Read', 'ReadWrite'); $sr = New-Object IO.StreamReader($t); $all = $sr.ReadToEnd(); $sr.Close()
+      $m = [regex]::Match($all, 'https://[a-z0-9-]+\.trycloudflare\.com'); if ($m.Success) { $link = $m.Value }
+    } catch {}
   }
   if ($link) {
     $clave = if (Test-Path $keyFile) { (Get-Content $keyFile -Raw).Trim() } else { '(abre primero el Mezclador)' }
@@ -69,6 +80,12 @@ while ($true) {
       "Actualizado: $(Get-Date -Format 'yyyy-MM-dd HH:mm')"
     ) | Set-Content -Path $txt -Encoding UTF8
   }
-  $p.WaitForExit()
+  # Watch it: if the link stops answering 3 times in a row, start a new tunnel (new link in the file).
+  $fails = 0
+  while (-not $p.HasExited) {
+    Start-Sleep -Seconds 60
+    if ($link -and -not (Alive $link)) { $fails++ } else { $fails = 0 }
+    if ($fails -ge 3 -or -not $link) { try { Stop-Process -Id $p.Id -Force } catch {}; break }
+  }
   Start-Sleep -Seconds 10
 }
