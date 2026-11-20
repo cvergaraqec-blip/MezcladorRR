@@ -10,7 +10,7 @@ const PREVIEW = /^https:\/\/([a-z0-9-]+\.)*(claudeusercontent\.com|claude\.ai|cl
 // The Netlify or Vercel copy of the page (site name starting with "mezcladorrr").
 const NETLIFY = /^https:\/\/([a-z0-9-]+--)?mezcladorrr[a-z0-9-]*\.(netlify|vercel)\.app$/;
 // Carlos's Mezclador shared with his partner through a Cloudflare quick tunnel (password-protected).
-const TUNNEL = /^https:\/\/[a-z0-9-]+\.trycloudflare\.com$/;
+const TUNNEL = /^https:\/\/[a-z0-9-]+\.(trycloudflare\.com|ngrok-free\.app|ngrok-free\.dev|ngrok\.app|ngrok\.dev)$/;
 const allowed = (o: string | null) => !o || ORIGINS.includes(o) || PREVIEW.test(o) || NETLIFY.test(o) || TUNNEL.test(o) || o === "null";
 
 type Piece = { title: string; filename: string; length: string; bpm: string; feel: string; instruments: string; description: string; isrc: string; collection: string | null };

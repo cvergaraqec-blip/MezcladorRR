@@ -3,6 +3,41 @@
 # "Mezclador-socio.txt". El enlace cambia cada vez que se reinicia el PC; la clave no.
 # Para dejar de compartir: cierra "cloudflared" en el Administrador de tareas.
 $ErrorActionPreference = 'Stop'
+# Enlace FIJO (gratis) con ngrok: si en esta carpeta están "ngrok-token.txt" (el authtoken de tu
+# cuenta de ngrok, lo pegas tú; no se sube a ningún lado) y "ngrok-dominio.txt" (tu dominio gratis,
+# p. ej. algo.ngrok-free.app), se usa ngrok y el enlace no cambia nunca. Si no, Cloudflare (cambia).
+$tokFile = Join-Path $PSScriptRoot 'ngrok-token.txt'
+$domFile = Join-Path $PSScriptRoot 'ngrok-dominio.txt'
+if ((Test-Path $tokFile) -and (Test-Path $domFile)) {
+  $ngrok = Join-Path $PSScriptRoot 'ngrok.exe'
+  if (-not (Test-Path $ngrok)) {
+    [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
+    $zip = Join-Path $env:TEMP 'ngrok.zip'
+    Invoke-WebRequest 'https://bin.equinox.io/c/bNyj1mQVY4c/ngrok-v3-stable-windows-amd64.zip' -OutFile $zip -UseBasicParsing
+    Expand-Archive $zip -DestinationPath $PSScriptRoot -Force
+  }
+  $env:NGROK_AUTHTOKEN = (Get-Content $tokFile -Raw).Trim()
+  $dom = ((Get-Content $domFile -Raw).Trim() -replace '^https?://', '' -replace '/.*$', '')
+  $desk = [Environment]::GetFolderPath('Desktop')
+  $keyFile = Join-Path $env:USERPROFILE '.mezclador-clave'
+  while ($true) {
+    $clave = if (Test-Path $keyFile) { (Get-Content $keyFile -Raw).Trim() } else { '(abre primero el Mezclador)' }
+    @(
+      'Mezclador RadioRun, para tu socio',
+      '',
+      "Enlace:  https://$dom",
+      'Usuario: socio',
+      "Clave:   $clave",
+      '',
+      'Este enlace es fijo: no cambia aunque reinicies el PC. Funciona mientras el PC esté encendido.',
+      'La primera vez ngrok muestra un aviso: pulsa "Visit Site" y luego pon usuario y clave.',
+      "Actualizado: $(Get-Date -Format 'yyyy-MM-dd HH:mm')"
+    ) | Set-Content -Path (Join-Path $desk 'Mezclador-socio.txt') -Encoding UTF8
+    $p = Start-Process -FilePath $ngrok -ArgumentList 'http', '--url', "https://$dom", 'http://127.0.0.1:8099', '--log', (Join-Path $env:TEMP 'mezclador-ngrok.log') -WindowStyle Hidden -PassThru
+    $p.WaitForExit()
+    Start-Sleep -Seconds 10
+  }
+}
 $exe = Join-Path $PSScriptRoot 'cloudflared.exe'
 if (-not (Test-Path $exe)) {
   [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
