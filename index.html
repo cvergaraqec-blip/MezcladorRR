@@ -642,12 +642,10 @@ ul.how b { color: var(--ink); font-weight: 600; }
   </details>
   </div>
   <div id="pagePub" class="page" hidden>
-    <p class="sub">Aquí llegan las músicas y rutinas que ya están listas (botón <b>→ Repositorio</b> en Mis listas y en Mis rutinas). Con <b>Exportar</b> se guardan en la base de datos que lee la app <b>RadioRun</b>.</p>
-    <section class="mixes repo-key" aria-label="Clave de exportación">
+    <p class="sub">Aquí llegan las músicas y rutinas que ya están listas (botón <b>→ Repositorio</b> en Mis listas y en Mis rutinas). Con <b>Exportar</b> cada una se guarda como archivo en tu carpeta <b>RadioRun-repositorio</b> (en tu Google Drive si lo tienes instalado), lista para que más adelante la lea la app <b>RadioRun</b>.</p>
+    <section class="mixes repo-key" aria-label="Exportar">
       <div class="repo-row">
-        <label for="repoKey"><b>Clave de exportación</b></label>
-        <input id="repoKey" type="password" autocomplete="off" placeholder="Escribe la clave" maxlength="120">
-        <label class="chk"><input id="repoRemember" type="checkbox"> Recordar en este navegador</label>
+        <span><b>Carpeta:</b> <span id="repoDir" class="note">…</span></span>
         <button id="repoAll" type="button" class="go">Exportar todo</button>
       </div>
       <span id="repoNote" class="note" role="status"></span>
@@ -662,7 +660,7 @@ ul.how b { color: var(--ink); font-weight: 600; }
       <div id="pubCanciones" class="mixlist"></div>
     </section>
     <section class="mixes pub" aria-label="Ya en la base de datos">
-      <h2>Ya en la base de datos de RadioRun <button id="repoRefresh" type="button" class="mini">Actualizar</button></h2>
+      <h2>Ya exportadas a la carpeta <button id="repoRefresh" type="button" class="mini">Actualizar</button></h2>
       <div id="repoDb" class="mixlist"></div>
     </section>
   </div>
@@ -1443,15 +1441,11 @@ function renderPub() {
     cb.appendChild(row);
   }
 }
-const REPO_API = 'https://kjakeluquwhmdvpesroj.supabase.co/functions/v1/repositorio';
+// Exportar: the local server (server.cjs) writes each item as a JSON file in the
+// RadioRun-repositorio folder. No key: it only listens on this computer.
+const REPO_API = '/api/repo';
+const NO_SERVER = 'Exportar funciona en tu copia local, en http://localhost:8099 (aquí no hay acceso a tu carpeta).';
 const expLabel = (x) => x.exportedAt ? '✓ exportado ' + new Date(x.exportedAt).toLocaleString('es', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }) : '';
-try { if (localStorage.getItem('mezcladorrr.clave')) { $('repoKey').value = localStorage.getItem('mezcladorrr.clave'); $('repoRemember').checked = true; } } catch (e) {}
-function keyNow() {
-  const k = $('repoKey').value.trim();
-  try { if ($('repoRemember').checked && k) localStorage.setItem('mezcladorrr.clave', k); else localStorage.removeItem('mezcladorrr.clave'); } catch (e) {}
-  return k;
-}
-$('repoRemember').addEventListener('change', keyNow);
 function repoItem(tipo, x) {
   if (tipo === 'rutina') return { tipo, id: x.id, nombre: x.name, bpm: x.segs[0]?.from, duracion_seg: x.segs.reduce((a, s) => a + Math.max(0, +s.min || 0) * 60, 0), datos: { version: 1, tramos: x.segs } };
   const loopsOut = (x.loops || []).filter((l) => !/dzcdn|deezer/i.test(l.src || '')).map((l) => ({ nombre: l.name, url: l.src, credito: l.credit || null, beats: l.beats, ajustes: l.settings || null, mesa: l.desk || null }));
@@ -1460,18 +1454,18 @@ function repoItem(tipo, x) {
     creditos: loopsOut.filter((l) => l.credito).map((l) => ({ tema: l.nombre, credito: l.credito, url: l.url })) };
 }
 async function exportOne(tipo, x, btn, quiet) {
-  const clave = keyNow();
-  if (!clave) { $('repoNote').textContent = 'Escribe la clave de exportación primero.'; $('repoKey').focus(); return false; }
   if (btn) { btn.disabled = true; btn.textContent = 'Exportando…'; }
   try {
-    const r = await fetch(REPO_API, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ clave, item: repoItem(tipo, x) }) });
-    const d = await r.json().catch(() => ({}));
+    const r = await fetch(REPO_API, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ item: repoItem(tipo, x) }) });
+    const d = await r.json().catch(() => null);
+    if (!d) throw new Error(NO_SERVER);
     if (!r.ok) throw new Error(d.error || 'No se pudo exportar');
     x.exportedAt = Date.now(); tipo === 'rutina' ? storeRoutines() : storeMixes();
-    if (!quiet) { $('repoNote').textContent = '✓ "' + x.name + '" quedó en la base de datos de RadioRun.'; renderPub(); loadRepoDb(); }
+    if (d.carpeta) $('repoDir').textContent = d.carpeta;
+    if (!quiet) { $('repoNote').textContent = '✓ "' + x.name + '" quedó guardada en la carpeta.'; renderPub(); loadRepoDb(); }
     return true;
   } catch (e) {
-    $('repoNote').textContent = 'No se pudo exportar "' + x.name + '": ' + e.message + '.';
+    $('repoNote').textContent = /Failed to fetch|NetworkError|localhost/.test(e.message) ? NO_SERVER : 'No se pudo exportar "' + x.name + '": ' + e.message + '.';
     if (btn) { btn.disabled = false; btn.textContent = 'Exportar'; }
     return false;
   }
@@ -1481,27 +1475,27 @@ $('repoAll').addEventListener('click', async () => {
   if (!items.length) { $('repoNote').textContent = 'No hay nada en el repositorio todavía.'; return; }
   let ok = 0;
   for (const [t, x] of items) { $('repoNote').textContent = 'Exportando ' + (ok + 1) + ' de ' + items.length + '…'; if (await exportOne(t, x, null, true)) ok++; else break; }
-  if (ok === items.length) $('repoNote').textContent = '✓ Exportados ' + ok + ' de ' + items.length + ' a la base de datos de RadioRun.';
+  if (ok === items.length) $('repoNote').textContent = '✓ Exportados ' + ok + ' de ' + items.length + ' a la carpeta.';
   renderPub(); loadRepoDb();
 });
 async function loadRepoDb() {
   const box = $('repoDb'); box.innerHTML = '<p class="note">Cargando…</p>';
   try {
-    const r = await fetch(REPO_API); if (!r.ok) throw new Error();
-    const rows = await r.json(); box.innerHTML = '';
-    if (!rows.length) { box.innerHTML = '<p class="note">La base de datos está vacía. Exporta algo de arriba.</p>'; return; }
-    for (const x of rows) {
+    const r = await fetch(REPO_API); const d = await r.json(); if (!r.ok || !d || !Array.isArray(d.items)) throw new Error();
+    $('repoDir').textContent = d.carpeta || '';
+    box.innerHTML = '';
+    if (!d.items.length) { box.innerHTML = '<p class="note">La carpeta está vacía. Exporta algo de arriba.</p>'; return; }
+    for (const x of d.items) {
       const [row, acts] = listRow((x.tipo === 'rutina' ? '⏱ ' : '🎵 ') + x.nombre, [x.tipo === 'rutina' ? 'Rutina' : 'Canción', x.estilo, x.bpm ? x.bpm + ' BPM' : '', x.duracion_seg ? fmtT(x.duracion_seg) : '', 'exportado ' + new Date(x.exportado_at).toLocaleString('es', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })].filter(Boolean).join(' · '));
-      const del = mkBtn(acts, 'Borrar de la base', () => confirmDel(del, async () => {
-        const clave = keyNow(); if (!clave) { $('repoNote').textContent = 'Escribe la clave de exportación primero.'; return; }
-        const rr = await fetch(REPO_API, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ clave, borrar: x.id }) });
-        const d = await rr.json().catch(() => ({}));
-        $('repoNote').textContent = rr.ok ? '✓ "' + x.nombre + '" se borró de la base de datos.' : 'No se pudo borrar: ' + (d.error || 'error') + '.';
+      const del = mkBtn(acts, 'Borrar de la carpeta', () => confirmDel(del, async () => {
+        const rr = await fetch(REPO_API, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ borrar: { tipo: x.tipo, id: x.id } }) });
+        const dd = await rr.json().catch(() => ({}));
+        $('repoNote').textContent = rr.ok ? '✓ "' + x.nombre + '" se borró de la carpeta.' : 'No se pudo borrar: ' + (dd.error || 'error') + '.';
         loadRepoDb();
       }));
       box.appendChild(row);
     }
-  } catch (e) { box.innerHTML = '<p class="note">No pude leer la base de datos (¿sin conexión?).</p>'; }
+  } catch (e) { $('repoDir').textContent = '(solo en tu copia local)'; box.innerHTML = '<p class="note">' + NO_SERVER + '</p>'; }
 }
 $('repoRefresh').addEventListener('click', loadRepoDb);
 $('bpm').addEventListener('input', (e) => { fixedBpm = Number(e.target.value); frame(); saveOpenMix(); });

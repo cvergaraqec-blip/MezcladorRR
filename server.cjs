@@ -9,6 +9,7 @@
 const fs = require('fs');
 const http = require('http');
 const path = require('path');
+const os = require('os');
 
 const ROOT = __dirname;
 const PAGE = path.join(ROOT, 'index.html');
@@ -18,6 +19,37 @@ const KIT = path.join(ROOT, 'kit');
 const PORT = Number(process.env.PORT) || 8099;
 const MIN_BPM = 40;
 const MAX_BPM = 220;
+
+// Repositorio: each exported song or routine is a JSON file in a folder, plus
+// indice.json with all of them (what the RadioRun app will read later). The
+// folder goes inside Google Drive for desktop when it is installed, so it syncs;
+// otherwise on the Desktop. MEZCLADOR_REPO can point it anywhere else.
+function repoDir() {
+  if (process.env.MEZCLADOR_REPO) return process.env.MEZCLADOR_REPO;
+  const home = os.homedir();
+  const drives = ['G:\\Mi unidad', 'G:\\My Drive', path.join(home, 'Google Drive', 'Mi unidad'), path.join(home, 'Google Drive', 'My Drive'), path.join(home, 'Google Drive'), path.join(home, 'Mi unidad'), path.join(home, 'My Drive')];
+  for (const d of drives) { try { if (fs.statSync(d).isDirectory()) return path.join(d, 'RadioRun-repositorio'); } catch {} }
+  return path.join(home, 'Desktop', 'RadioRun-repositorio');
+}
+const REPO_KINDS = { rutina: 'rutinas', cancion: 'canciones' };
+const safeId = (id) => String(id || '').replace(/[^a-zA-Z0-9_-]/g, '').slice(0, 60);
+function repoList(dir) {
+  const out = [];
+  for (const [tipo, sub] of Object.entries(REPO_KINDS)) {
+    const d = path.join(dir, sub);
+    if (!fs.existsSync(d)) continue;
+    for (const f of fs.readdirSync(d)) {
+      if (!f.endsWith('.json')) continue;
+      try { const x = JSON.parse(fs.readFileSync(path.join(d, f), 'utf8')); if (x && x.tipo === tipo) out.push(x); } catch {}
+    }
+  }
+  return out.sort((a, b) => String(b.exportado_at).localeCompare(String(a.exportado_at)));
+}
+function writeIndex(dir) {
+  const items = repoList(dir);
+  fs.writeFileSync(path.join(dir, 'indice.json'), JSON.stringify({ version: 1, actualizado: new Date().toISOString(), items }, null, 2) + '\n');
+  return items;
+}
 
 const readJson = (file, fallback) => (fs.existsSync(file) ? JSON.parse(fs.readFileSync(file, 'utf8')) : fallback);
 const isRange = (r) =>
@@ -92,6 +124,39 @@ function handle(req, res) {
       }
     });
     return;
+  }
+  if (url.pathname === '/api/repo') {
+    const dir = repoDir();
+    if (req.method === 'GET') return send(res, 200, 'application/json', JSON.stringify({ carpeta: dir, items: repoList(dir) }));
+    if (req.method === 'POST') {
+      // Only this page may write: same origin and JSON (other sites can't send that without asking first).
+      const origin = req.headers.origin;
+      if ((origin && !/^http:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/.test(origin)) || !/^application\/json/.test(req.headers['content-type'] || '')) return send(res, 403, 'application/json', JSON.stringify({ ok: false, error: 'no permitido' }));
+      let body = '';
+      req.on('data', (c) => { body += c; if (body.length > 2_000_000) req.destroy(); });
+      req.on('end', () => {
+        try {
+          const d = JSON.parse(body || '{}');
+          if (d.borrar) {
+            const sub = REPO_KINDS[d.borrar.tipo], id = safeId(d.borrar.id);
+            if (!sub || !id) throw new Error('falta qué borrar');
+            fs.rmSync(path.join(dir, sub, id + '.json'), { force: true });
+          } else {
+            const x = d.item, sub = x && REPO_KINDS[x.tipo], id = x && safeId(x.id);
+            if (!sub || !id || !x.nombre) throw new Error('datos incompletos');
+            fs.mkdirSync(path.join(dir, sub), { recursive: true });
+            const item = { ...x, id, nombre: String(x.nombre).slice(0, 80), exportado_at: new Date().toISOString() };
+            fs.writeFileSync(path.join(dir, sub, id + '.json'), JSON.stringify(item, null, 2) + '\n');
+          }
+          fs.mkdirSync(dir, { recursive: true });
+          const items = writeIndex(dir);
+          send(res, 200, 'application/json', JSON.stringify({ ok: true, carpeta: dir, items }));
+        } catch (e) {
+          send(res, 400, 'application/json', JSON.stringify({ ok: false, error: String(e.message || e) }));
+        }
+      });
+      return;
+    }
   }
   send(res, 404, 'text/plain', 'Not found');
 }
