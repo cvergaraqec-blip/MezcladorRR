@@ -225,7 +225,9 @@ ul.how b { color: var(--ink); font-weight: 600; }
 @media (max-width: 480px) { .wb-modes { grid-template-columns: 1fr; } }
 #transport.is-rutina .seg, #transport.is-rutina .bpm { display: none; }
 .rbox[hidden] { display: none; }
-#routineBox.inwork .rbox-head, #routineBox.inwork #rtClose, #routineBox.inwork #rtSave, #routineBox.inwork #rtSaved { display: none; }
+#routineBox.inwork .rbox-head, #routineBox.inwork #rtClose, #routineBox.inwork #rtSaved { display: none; }
+#rtPub { display: none; }
+#routineBox.inwork #rtPub { display: inline-flex; }
 .mixitem .nm em.kind { display: inline-block; white-space: nowrap; color: #141a0f; background: var(--muted); border-radius: 99px; padding: 1px 8px; font-weight: 600; }
 .mixitem .nm em.kind.rt { background: var(--lime); }
 .vol { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; color: var(--muted); flex: 0 0 auto; }
@@ -530,6 +532,7 @@ ul.how b { color: var(--ink); font-weight: 600; }
           <button id="rtAdd" type="button">＋ Agregar tramo</button>
           <button id="rtPlay" type="button" class="go">▶ Probar rutina</button>
           <button id="rtSave" type="button">Guardar rutina</button>
+          <button id="rtPub" type="button">→ Repositorio</button>
           <button id="rtClose" type="button">Cerrar</button>
           <span id="rtNow" class="rt-now" aria-live="polite"></span>
         </div>
@@ -1376,7 +1379,21 @@ $('rtPlay').addEventListener('click', async () => {
   if (mode === 'routine' && playing) { stop(); setMode('fixed'); return; }
   setMode('routine'); await start(); $('rtPlay').textContent = '■ Parar rutina';
 });
+// Working on a song marked as Rutina (Mis listas): the routine is saved inside that song,
+// and "→ Repositorio" sends the song, as a routine, to the Repositorio page.
+const workMix = () => ($('routineBox').classList.contains('inwork') ? mixes.find((x) => x.id === openMix) : null);
+function rtPubUi() { const m = workMix(); $('rtPub').textContent = m && m.publish ? '✓ En repositorio' : '→ Repositorio'; }
+function saveWorkRoutine(m) {
+  m.routine = JSON.parse(JSON.stringify(routine)); storeMixes(); renderMixes();
+  $('rtSave').textContent = '✓ Guardada'; setTimeout(() => { $('rtSave').textContent = 'Guardar rutina'; }, 1500);
+}
+$('rtPub').addEventListener('click', () => {
+  const m = workMix(); if (!m) return;
+  m.publish = !m.publish; saveWorkRoutine(m); rtPubUi();
+  setStatus(m.publish ? '✓ "' + m.name + '" quedó en Repositorio, en Rutinas. Ahí pulsa Exportar.' : 'Quitada del Repositorio.');
+});
 $('rtSave').addEventListener('click', () => {
+  const wm = workMix(); if (wm) { saveWorkRoutine(wm); rtPubUi(); return; }
   const name = $('rtName').value.trim() || 'Rutina ' + (routines.length + 1);
   const old = routines.find((x) => x.id === rtEditId);
   if (old) { old.name = name; old.segs = JSON.parse(JSON.stringify(routine)); }
@@ -2082,6 +2099,7 @@ function workUi() {
   $('transport').classList.toggle('is-rutina', onMesa && isRt);
   $('routineBox').classList.toggle('inwork', onMesa);
   if (onMesa) $('routineBox').hidden = !isRt; else $('routineBox').hidden = false;
+  rtPubUi();
 }
 $('wbLibre').addEventListener('click', () => {
   const m = mixes.find((x) => x.id === openMix); if (!m) return;
