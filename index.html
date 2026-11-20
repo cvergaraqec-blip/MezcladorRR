@@ -1419,10 +1419,13 @@ function renderRoutines() {
     list.appendChild(row);
   }
 }
+// A music marked as Rutina (Mis listas) goes to the repository as a routine, with its song.
+const isRtMix = (m) => Array.isArray(m.routine) && m.routine.length > 0;
+const kindOf = (m) => (isRtMix(m) ? 'rutina' : 'cancion');
 function renderPub() {
   const rb = $('pubRutinas'), cb = $('pubCanciones'); rb.innerHTML = ''; cb.innerHTML = '';
-  const rs = routines.filter((r) => r.publish), ms = mixes.filter((m) => m.publish);
-  if (!rs.length) rb.innerHTML = '<p class="note">Todavía no hay rutinas aquí. En <b>Mis rutinas</b> pulsa <b>→ Repositorio</b> en una rutina lista.</p>';
+  const rs = routines.filter((r) => r.publish), ms = mixes.filter((m) => m.publish && !isRtMix(m)), rms = mixes.filter((m) => m.publish && isRtMix(m));
+  if (!rs.length && !rms.length) rb.innerHTML = '<p class="note">Todavía no hay rutinas aquí. Pulsa <b>→ Repositorio</b> en una música marcada como <b>⏱ Rutina</b> (Mis listas) o en Mis rutinas.</p>';
   if (!ms.length) cb.innerHTML = '<p class="note">Todavía no hay canciones aquí. En <b>2 · Mis listas</b> pulsa <b>→ Repositorio</b> en una música lista.</p>';
   for (const r of rs) {
     const [row, acts] = listRow(r.name, segsText(r.segs) + ' · ' + segsTime(r.segs), expLabel(r));
@@ -1431,12 +1434,19 @@ function renderPub() {
     mkBtn(acts, 'Quitar', () => { r.publish = false; storeRoutines(); renderRoutines(); renderPub(); });
     rb.appendChild(row);
   }
+  for (const m of rms) {
+    const [row, acts] = listRow('⏱ ' + m.name, [m.style, segsText(m.routine), segsTime(m.routine), (m.loops || []).map((l) => l.name).filter(Boolean).join(', ')].filter(Boolean).join(' · '), expLabel(m));
+    mkBtn(acts, m.exportedAt ? 'Exportar de nuevo' : 'Exportar', (e) => exportOne('rutina', m, e.currentTarget));
+    mkBtn(acts, '▶ Probar', async () => { stopPreview(); await openMixById(m.id); if (!playing && engine) await start(); }, 'go');
+    mkBtn(acts, 'Quitar', () => { m.publish = false; storeMixes(); renderMixes(); renderPub(); });
+    rb.appendChild(row);
+  }
   for (const m of ms) {
     const nT = (m.loops || []).length;
     const [row, acts] = listRow(m.name, [m.style, (m.bpm || '?') + ' BPM', nT ? nT + (nT === 1 ? ' tema' : ' temas') : '', (m.loops || []).map((l) => l.name).filter(Boolean).join(', ')].filter(Boolean).join(' · '));
     row.querySelector('.nm').appendChild(Object.assign(document.createElement('em'), { textContent: expLabel(m) }));
     mkBtn(acts, '▶ Escuchar', async () => { stopPreview(); await openMixById(m.id); if (!playing && engine) await start(); }, 'go');
-    mkBtn(acts, m.exportedAt ? 'Exportar de nuevo' : 'Exportar', (e) => exportOne('cancion', m, e.currentTarget));
+    mkBtn(acts, m.exportedAt ? 'Exportar de nuevo' : 'Exportar', (e) => exportOne(kindOf(m), m, e.currentTarget));
     mkBtn(acts, 'Quitar', () => { m.publish = false; storeMixes(); renderMixes(); renderPub(); });
     cb.appendChild(row);
   }
@@ -1447,6 +1457,10 @@ const REPO_API = '/api/repo';
 const NO_SERVER = 'Exportar funciona en tu copia local, en http://localhost:8099 (aquí no hay acceso a tu carpeta).';
 const expLabel = (x) => x.exportedAt ? '✓ exportado ' + new Date(x.exportedAt).toLocaleString('es', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }) : '';
 function repoItem(tipo, x) {
+  if (tipo === 'rutina' && !x.segs) {
+    const c = repoItem('cancion', x);
+    return { ...c, tipo, bpm: x.routine[0]?.from, duracion_seg: x.routine.reduce((a, s) => a + Math.max(0, +s.min || 0) * 60, 0), datos: { ...c.datos, tramos: x.routine } };
+  }
   if (tipo === 'rutina') return { tipo, id: x.id, nombre: x.name, bpm: x.segs[0]?.from, duracion_seg: x.segs.reduce((a, s) => a + Math.max(0, +s.min || 0) * 60, 0), datos: { version: 1, tramos: x.segs } };
   const loopsOut = (x.loops || []).filter((l) => !/dzcdn|deezer/i.test(l.src || '')).map((l) => ({ nombre: l.name, url: l.src, credito: l.credit || null, beats: l.beats, ajustes: l.settings || null, mesa: l.desk || null }));
   return { tipo, id: x.id, nombre: x.name, estilo: x.style, bpm: x.bpm,
@@ -1460,7 +1474,9 @@ async function exportOne(tipo, x, btn, quiet) {
     const d = await r.json().catch(() => null);
     if (!d) throw new Error(NO_SERVER);
     if (!r.ok) throw new Error(d.error || 'No se pudo exportar');
-    x.exportedAt = Date.now(); tipo === 'rutina' ? storeRoutines() : storeMixes();
+    x.exportedAt = Date.now(); x.segs ? storeRoutines() : storeMixes();
+    // It changed kind (Libre ↔ Rutina) since an earlier export: drop the old copy.
+    if (!x.segs) fetch(REPO_API, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ borrar: { tipo: tipo === 'rutina' ? 'cancion' : 'rutina', id: x.id } }) }).then(() => !quiet && loadRepoDb()).catch(() => {});
     if (d.carpeta) $('repoDir').textContent = d.carpeta;
     if (!quiet) { $('repoNote').textContent = '✓ "' + x.name + '" quedó guardada en la carpeta.'; renderPub(); loadRepoDb(); }
     return true;
@@ -1471,7 +1487,7 @@ async function exportOne(tipo, x, btn, quiet) {
   }
 }
 $('repoAll').addEventListener('click', async () => {
-  const items = [...routines.filter((r) => r.publish).map((r) => ['rutina', r]), ...mixes.filter((m) => m.publish).map((m) => ['cancion', m])];
+  const items = [...routines.filter((r) => r.publish).map((r) => ['rutina', r]), ...mixes.filter((m) => m.publish).map((m) => [kindOf(m), m])];
   if (!items.length) { $('repoNote').textContent = 'No hay nada en el repositorio todavía.'; return; }
   let ok = 0;
   for (const [t, x] of items) { $('repoNote').textContent = 'Exportando ' + (ok + 1) + ' de ' + items.length + '…'; if (await exportOne(t, x, null, true)) ok++; else break; }
