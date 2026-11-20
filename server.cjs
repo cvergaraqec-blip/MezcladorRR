@@ -10,6 +10,7 @@ const fs = require('fs');
 const http = require('http');
 const path = require('path');
 const os = require('os');
+const crypto = require('crypto');
 
 const ROOT = __dirname;
 const PAGE = path.join(ROOT, 'index.html');
@@ -77,13 +78,90 @@ function cleanMix(input, layers) {
 }
 
 function send(res, status, type, body) {
-  // X-Mezclador tells the page it can save mix.json through this server.
-  res.writeHead(status, { 'Content-Type': type, 'Cache-Control': 'no-store', 'X-Mezclador': 'server' });
+  // X-Mezclador tells the page it can save mix.json through this server (not for a visitor
+  // through the tunnel: they can listen and try, but not change Carlos's files).
+  const h = { 'Content-Type': type, 'Cache-Control': 'no-store' };
+  if (!res.remote) h['X-Mezclador'] = 'server';
+  res.writeHead(status, h);
   res.end(body);
+}
+
+// Sharing through a tunnel (cloudflared → 127.0.0.1:8099). A request that comes through it
+// carries cf-connecting-ip or a Host that isn't this PC, and must give the password. The
+// password is created once on this PC (~/.mezclador-clave); Tunel.ps1 writes it, with the
+// link, to the Desktop file for the partner. Nobody else ever sees it.
+const KEY_FILE = path.join(os.homedir(), '.mezclador-clave');
+function sharePassword() {
+  try { const k = fs.readFileSync(KEY_FILE, 'utf8').trim(); if (k.length >= 8) return k; } catch {}
+  const abc = 'abcdefghjkmnpqrstuvwxyz23456789';
+  const k = Array.from(crypto.randomBytes(10), (b) => abc[b % abc.length]).join('');
+  fs.writeFileSync(KEY_FILE, k + '\n', { mode: 0o600 });
+  return k;
+}
+const isRemote = (req) => Boolean(req.headers['cf-connecting-ip']) || !/^(localhost|127\.0\.0\.1)(:\d+)?$/.test(req.headers.host || '');
+function passwordOk(req) {
+  const m = /^Basic\s+(.+)$/i.exec(req.headers.authorization || '');
+  if (!m) return false;
+  const given = Buffer.from(Buffer.from(m[1], 'base64').toString('utf8').replace(/^[^:]*:/, ''));
+  const want = Buffer.from(sharePassword());
+  return given.length === want.length && crypto.timingSafeEqual(given, want);
+}
+
+// The separator (port 8097) is only reachable on this PC, so a visitor's page uses /sep/… here.
+// Separating takes minutes and the tunnel cuts a request after ~100 s, so /sep/separar answers
+// 202 "still working" after 60 s and the page asks again; the same song joins the same job.
+const SEP_PORT = Number(process.env.SEPARADOR_PORT) || 8097;
+const sepJobs = new Map();
+function sepRequest(method, p, body) {
+  return new Promise((resolve, reject) => {
+    const r = http.request({ host: '127.0.0.1', port: SEP_PORT, method, path: p, headers: body ? { 'Content-Type': 'application/json', 'Content-Length': Buffer.byteLength(body) } : {} }, (up) => {
+      const chunks = []; up.on('data', (c) => chunks.push(c)); up.on('end', () => resolve({ status: up.statusCode, type: up.headers['content-type'] || 'application/octet-stream', body: Buffer.concat(chunks) }));
+    });
+    r.on('error', reject); if (body) r.write(body); r.end();
+  });
+}
+function sepProxy(req, res, url) {
+  const p = url.pathname.slice(4);
+  const fail = () => send(res, 502, 'application/json', JSON.stringify({ error: 'El separador no está abierto en el PC del Mezclador.' }));
+  if (req.method === 'GET' && (p === '/estado' || /^\/stems\/[0-9a-f]{16}\/(voz|bateria|bajo|otros)\.mp3$/.test(p))) {
+    return sepRequest('GET', p).then((r) => send(res, r.status, r.type, r.body), fail);
+  }
+  if (req.method === 'POST' && p === '/separar') {
+    let body = '';
+    req.on('data', (c) => { body += c; if (body.length > 10_000) req.destroy(); });
+    req.on('end', () => {
+      let key; try { key = String(JSON.parse(body || '{}').url || ''); } catch { key = ''; }
+      if (!key) return send(res, 400, 'application/json', JSON.stringify({ error: 'Falta la canción' }));
+      let job = sepJobs.get(key);
+      if (!job) {
+        job = sepRequest('POST', '/separar', JSON.stringify({ url: key }));
+        sepJobs.set(key, job);
+        job.then(() => setTimeout(() => sepJobs.delete(key), 600_000), () => sepJobs.delete(key));
+      }
+      const wait = new Promise((r) => setTimeout(() => r(null), 60_000));
+      Promise.race([job, wait]).then((r) => {
+        if (!r) return send(res, 202, 'application/json', JSON.stringify({ pendiente: true }));
+        send(res, r.status, r.type, r.body);
+      }, fail);
+    });
+    return;
+  }
+  send(res, 404, 'text/plain', 'Not found');
 }
 
 function handle(req, res) {
   const url = new URL(req.url, 'http://localhost');
+  if (isRemote(req)) {
+    res.remote = true;
+    if (!passwordOk(req)) {
+      res.writeHead(401, { 'WWW-Authenticate': 'Basic realm="Mezclador RadioRun", charset="UTF-8"', 'Content-Type': 'text/plain; charset=utf-8' });
+      return res.end('Pide la clave a quien te compartió el Mezclador.');
+    }
+    if (req.method !== 'GET' && !url.pathname.startsWith('/sep/')) {
+      return send(res, 403, 'application/json', JSON.stringify({ ok: false, error: 'esto solo se puede hacer en el PC del Mezclador' }));
+    }
+  }
+  if (url.pathname.startsWith('/sep/')) return sepProxy(req, res, url);
   if (req.method === 'GET' && (url.pathname === '/' || url.pathname === '/index.html')) {
     return send(res, 200, 'text/html; charset=utf-8', fs.readFileSync(PAGE));
   }
@@ -127,7 +205,7 @@ function handle(req, res) {
   }
   if (url.pathname === '/api/repo') {
     const dir = repoDir();
-    if (req.method === 'GET') return send(res, 200, 'application/json', JSON.stringify({ carpeta: dir, items: repoList(dir) }));
+    if (req.method === 'GET') return send(res, 200, 'application/json', JSON.stringify({ carpeta: res.remote ? 'RadioRun-repositorio (en el PC del Mezclador)' : dir, items: repoList(dir) }));
     if (req.method === 'POST') {
       // Only this page may write: same origin and JSON (other sites can't send that without asking first).
       const origin = req.headers.origin;
@@ -162,6 +240,7 @@ function handle(req, res) {
 }
 
 if (require.main === module) {
+  sharePassword();
   http.createServer(handle).listen(PORT, '127.0.0.1', () => {
     console.log(`Mezclador: http://localhost:${PORT}  (Ctrl+C para cerrar)`);
   });

@@ -1544,9 +1544,10 @@ async function addLoopFile(file, meta = {}) {
   }
 }
 // ---- Separate an imported song into voz / batería / bajo / otros (Demucs, on this PC) ----
-const SEP = 'http://localhost:8097';
+// On this PC the page talks to the separator directly; through the tunnel it goes via /sep/.
+const SEP = /^(localhost|127\.0\.0\.1)$/.test(location.hostname) || location.protocol === 'file:' ? 'http://localhost:8097' : '/sep';
 const STEM_NAMES = { voz: 'Voz', bateria: 'Batería', bajo: 'Bajo', otros: 'Otros' };
-const sepCandidate = () => loops.find((l) => l.src && !l.stem && !/^https?:\/\/(localhost|127\.0\.0\.1):8097\//.test(l.src));
+const sepCandidate = () => loops.find((l) => l.src && !l.stem && !/^(https?:\/\/(localhost|127\.0\.0\.1):8097|\/sep)\//.test(l.src));
 function sepUi() {
   const l = sepCandidate(); $('sepBar').hidden = !l || sepBusy;
   if (l && !sepBusy) $('sepText').textContent = '«' + l.name + '» es un solo archivo, por eso tiene un solo canal. Sepáralo en voz, batería, bajo y otros para mezclarlos aparte.';
@@ -1560,7 +1561,7 @@ async function separateLoop(l, btn) {
   try {
     let up = false; try { up = (await fetch(SEP + '/estado', { signal: AbortSignal.timeout(3000) })).ok; } catch (e) {}
     if (!up) throw new Error('El separador no está abierto en tu PC. Abre «Separador.bat» (carpeta separador) y vuelve a intentar.');
-    const r = await fetch(SEP + '/separar', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ url: l.src }) });
+    let r; do r = await fetch(SEP + '/separar', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ url: l.src }) }); while (r.status === 202);
     const d = await r.json().catch(() => ({}));
     if (!r.ok) throw new Error(d.error || 'No se pudo separar');
     const files = await Promise.all(Object.entries(d.stems).map(async ([k, path]) => { const rr = await fetch(SEP + path); if (!rr.ok) throw new Error('No pude leer la pista ' + k); return [k, path, await rr.blob()]; }));

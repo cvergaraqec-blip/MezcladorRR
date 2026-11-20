@@ -1,0 +1,4 @@
+' Abre el túnel para el socio sin ventana (ver Tunel.ps1).
+Set sh = CreateObject("WScript.Shell")
+dir = CreateObject("Scripting.FileSystemObject").GetParentFolderName(WScript.ScriptFullName)
+sh.Run "powershell -NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File """ & dir & "\Tunel.ps1""", 0, False
