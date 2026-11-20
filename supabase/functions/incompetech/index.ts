@@ -9,7 +9,9 @@ const ORIGINS = ["https://cvergaraqec-blip.github.io", "http://localhost:8099", 
 const PREVIEW = /^https:\/\/([a-z0-9-]+\.)*(claudeusercontent\.com|claude\.ai|claude\.site)$/;
 // The Netlify or Vercel copy of the page (site name starting with "mezcladorrr").
 const NETLIFY = /^https:\/\/([a-z0-9-]+--)?mezcladorrr[a-z0-9-]*\.(netlify|vercel)\.app$/;
-const allowed = (o: string | null) => !o || ORIGINS.includes(o) || PREVIEW.test(o) || NETLIFY.test(o) || o === "null";
+// Carlos's Mezclador shared with his partner through a Cloudflare quick tunnel (password-protected).
+const TUNNEL = /^https:\/\/[a-z0-9-]+\.trycloudflare\.com$/;
+const allowed = (o: string | null) => !o || ORIGINS.includes(o) || PREVIEW.test(o) || NETLIFY.test(o) || TUNNEL.test(o) || o === "null";
 
 type Piece = { title: string; filename: string; length: string; bpm: string; feel: string; instruments: string; description: string; isrc: string; collection: string | null };
 type Track = { t: string; f: string; s: number; b: number; feel: string; ins: string; d: string; i: string; g: string };
