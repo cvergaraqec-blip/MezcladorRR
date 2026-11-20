@@ -239,8 +239,62 @@ function handle(req, res) {
   send(res, 404, 'text/plain', 'Not found');
 }
 
+// The tunnel for the partner, run by this server (so nothing else has to start at login).
+// tunel/ngrok.exe + ngrok-token.txt + ngrok-dominio.txt → fixed link; else tunel/cloudflared.exe →
+// a link that changes. The current link, user and password go to Desktop/Mezclador-socio.txt.
+// Every minute it checks that the link answers; after 3 misses it starts the tunnel again.
+// MEZCLADOR_TUNEL=0 turns it off.
+function startTunnel() {
+  if (process.env.MEZCLADOR_TUNEL === '0') return;
+  const { spawn } = require('child_process');
+  const https = require('https');
+  const dir = path.join(ROOT, 'tunel');
+  const f = (n) => path.join(dir, n);
+  const read = (n) => { try { return fs.readFileSync(f(n), 'utf8').trim(); } catch { return ''; } };
+  const exe = (n) => fs.existsSync(f(n + '.exe')) ? f(n + '.exe') : null;
+  const out = path.join(os.homedir(), 'Desktop', 'Mezclador-socio.txt');
+  const log = (m) => console.log('[túnel] ' + m);
+  let child = null, link = null, misses = 0;
+  const write = (fixed) => {
+    const lines = ['Mezclador RadioRun, para tu socio', '', 'Enlace:  ' + link, 'Usuario: socio', 'Clave:   ' + sharePassword(), '',
+      fixed ? 'Este enlace es fijo: no cambia aunque reinicies el PC. Funciona mientras el PC esté encendido.' : 'Pásale estas tres líneas. El enlace funciona mientras este PC esté encendido.',
+      fixed ? 'La primera vez ngrok muestra un aviso: pulsa "Visit Site" y luego pon usuario y clave.' : 'Si el PC se reinicia o el túnel se cae, el enlace cambia: este archivo se actualiza solo.',
+      'Actualizado: ' + new Date().toLocaleString('es')];
+    try { fs.writeFileSync(out, '\ufeff' + lines.join('\r\n') + '\r\n'); } catch (e) { log('no pude escribir ' + out + ': ' + e.message); }
+  };
+  function start() {
+    link = null; misses = 0;
+    const domain = read('ngrok-dominio.txt').replace(/^https?:\/\//, '').replace(/\/.*$/, '');
+    const token = read('ngrok-token.txt');
+    const ng = exe('ngrok'), cf = exe('cloudflared');
+    if (ng && token && domain) {
+      child = spawn(ng, ['http', '--url', 'https://' + domain, '--log', 'stdout', 'http://127.0.0.1:' + PORT], { windowsHide: true, env: { ...process.env, NGROK_AUTHTOKEN: token } });
+      link = 'https://' + domain; write(true); log(link);
+    } else if (cf) {
+      child = spawn(cf, ['tunnel', '--no-autoupdate', '--url', 'http://127.0.0.1:' + PORT], { windowsHide: true });
+      const look = (b) => { const m = !link && /https:\/\/[a-z0-9-]+\.trycloudflare\.com/.exec(String(b)); if (m) { link = m[0]; write(false); log(link); } };
+      child.stdout.on('data', look); child.stderr.on('data', look);
+    } else return;
+    child.stdout.resume(); child.stderr.resume();
+    child.on('error', (e) => log('no arrancó: ' + e.message));
+    child.on('exit', () => { child = null; setTimeout(start, 10_000); });
+  }
+  setInterval(() => {
+    if (!child) return;
+    if (!link) { if (++misses >= 3) child.kill(); return; }
+    const req = https.get(link + '/estado-tunel', { timeout: 20_000, headers: { 'ngrok-skip-browser-warning': '1' } }, (res) => {
+      res.resume(); if ([200, 401, 404].includes(res.statusCode)) misses = 0; else if (++misses >= 3) child && child.kill();
+    });
+    req.on('timeout', () => req.destroy(new Error('timeout')));
+    req.on('error', () => { if (++misses >= 3 && child) child.kill(); });
+  }, 60_000).unref();
+  process.on('exit', () => child && child.kill());
+  start();
+}
+
 if (require.main === module) {
   sharePassword();
+  startTunnel();
   http.createServer(handle).listen(PORT, '127.0.0.1', () => {
     console.log(`Mezclador: http://localhost:${PORT}  (Ctrl+C para cerrar)`);
   });
