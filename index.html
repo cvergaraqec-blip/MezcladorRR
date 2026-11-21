@@ -2033,6 +2033,8 @@ async function loadTracks(a, box) {
 const MIXES_STORE = 'mezcladorrr.mezclas';
 let mixes = [];
 try { mixes = JSON.parse(localStorage.getItem(MIXES_STORE) || '[]'); if (!Array.isArray(mixes)) mixes = []; } catch { mixes = []; }
+// Songs made "Al estilo de…" on a free base were saved with the base muted (silenceKit bug): unmute it.
+for (const m of mixes) if (m && m.kitFixed && Array.isArray(m.loops) && m.loops.length && m.loops.every((l) => l.settings && l.settings.gain === 0)) for (const l of m.loops) l.settings.gain = 1;
 let openMix = null, mixTimer = 0;
 function storeMixes() { try { localStorage.setItem(MIXES_STORE, JSON.stringify(mixes)); } catch {} }
 // Loops from Música libre are kept by their link (and credit), with their own
@@ -2588,7 +2590,7 @@ function trackRow(x) {
 }
 // A song brought from another platform plays alone: the kit's own instruments
 // (pad, aire, latido…) are switched off so nothing sounds underneath it.
-function silenceKit() { for (const id in DEFAULTS) if (settings[id]) settings[id].gain = 0; focus = []; live(); fill(); draw(); }
+function silenceKit() { for (const id in DEFAULTS) if (settings[id] && !loops.some((l) => l.id === id)) settings[id].gain = 0; focus = []; live(); fill(); draw(); }
 const LIB_STYLE = /^(Incompetech|Jamendo|Wikimedia|Freesound|ccMixter|Openverse)$/i;
 async function trackAdd(x, btn, row) {
   btn.disabled = true; btn.textContent = 'Trayendo el tema…';
