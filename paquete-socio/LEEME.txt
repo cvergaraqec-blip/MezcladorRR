@@ -1,0 +1,12 @@
+MEZCLADOR RADIORUN - cómo abrirlo
+
+1. Descomprime este zip (clic derecho > "Extraer todo...") en el Escritorio o donde quieras.
+2. Entra a la carpeta y haz doble clic en "Abrir Mezclador.vbs".
+   Se abre solo en tu navegador, en http://localhost:8099
+3. Para cerrarlo, haz doble clic en "Cerrar Mezclador.bat" (o reinicia el PC).
+
+Notas
+- No hay que instalar nada. Necesita internet para la música de Incompetech y Jamendo
+  y para buscar artistas.
+- Si Windows pregunta si quieres ejecutarlo, elige "Ejecutar" o "Más información > Ejecutar de todas formas".
+- Tus músicas guardadas (Mis listas) quedan en tu navegador, en este PC.

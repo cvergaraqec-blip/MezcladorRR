@@ -1,0 +1,10 @@
+Separador de instrumentos (IA) - Mezclador RadioRun
+
+1. Doble clic en Separador.bat y deja la ventana abierta.
+2. En el Mezclador abre una cancion traida en Mis listas y pulsa "Separar instrumentos (IA)" en la Mesa.
+3. Tarda varios minutos por cancion en este PC. Las pistas quedan en la carpeta "pistas".
+
+Instalacion (una sola vez, ya hecha en el PC de Carlos):
+  py -3.12 -m venv D:\MezcladorRR-separador\venv
+  D:\MezcladorRR-separador\venv\Scripts\pip install torch==2.5.1 torchaudio==2.5.1 --index-url https://download.pytorch.org/whl/cpu
+  D:\MezcladorRR-separador\venv\Scripts\pip install demucs soundfile
